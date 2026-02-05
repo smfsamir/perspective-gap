@@ -34,6 +34,7 @@ run_step() {
     echo ""
     echo "Error output:"
     echo "$output"
+    echo "If you need help resolving this error, please email f.samir@utoronto.ca"
     return 1
   fi
 }
@@ -76,5 +77,6 @@ echo ""
 for file in data/${ARTICLE_FOLDER_PREFIX}_inference_predictions/*; do
   echo "Contents of $file:"
   cat "$file"
+  echo ""
   echo "-----------------------------------"
 done
