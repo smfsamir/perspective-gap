@@ -427,13 +427,14 @@ def run_large_scale_inference(input_file_prefix):
         "google/flan-t5-large", 
         cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache")
     )
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     flan_t5 = AutoModelForSeq2SeqLM.from_pretrained(
         "smfsamir/perspective-gap"
         # pretrained_model_name_or_path=os.path.join(
         #     config['SCRATCH_DIR'], 
         #     "sympathy_distillation", 
         #     "checkpoint-1300")
-    ).to('cuda')
+    ).to(device)
 
     inference_dataset = load_dataset("json", 
                            data_files={'train': f"data/distillation_data/{input_file_prefix}_coref_inference_dataset.json"},

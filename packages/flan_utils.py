@@ -1,4 +1,5 @@
 import loguru
+import torch
 import ipdb
 from typing import Dict, List
 import jiwer
@@ -12,7 +13,8 @@ from sklearn.metrics import classification_report
 
 logger = loguru.logger
 def generate_predictions(model, tokenizer, batch) -> Dict:
-    inputs = tokenizer(batch['prompt'], return_tensors='pt', padding=True).to('cuda')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    inputs = tokenizer(batch['prompt'], return_tensors='pt', padding=True).to(device)
     outputs = model.generate(
         input_ids=inputs['input_ids'], 
         attention_mask=inputs['attention_mask'], 
