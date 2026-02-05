@@ -429,10 +429,11 @@ def run_large_scale_inference(input_file_prefix):
         cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache")
     )
     flan_t5 = AutoModelForSeq2SeqLM.from_pretrained(
-        pretrained_model_name_or_path=os.path.join(
-            config['SCRATCH_DIR'], 
-            "sympathy_distillation", 
-            "checkpoint-1300")
+        "smfsamir/perspective-gap"
+        # pretrained_model_name_or_path=os.path.join(
+        #     config['SCRATCH_DIR'], 
+        #     "sympathy_distillation", 
+        #     "checkpoint-1300")
     ).to('cuda')
 
     inference_dataset = load_dataset("json", 
