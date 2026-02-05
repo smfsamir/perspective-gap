@@ -1,0 +1,26 @@
+DEV_SUBJECTS = ['Vitaly Savin', 'Chris Bloomfield', 'Charles Qirngnirq', 'Dale Culver', 'Pierre Coriolan', 'Babak Saidi', 'Matt Dumas', 'Quinn E MacDougall', 'Jermaine Carby\t', 'Rui Nabico']
+deaths_by_year = {
+    2000: 19,
+    2001: 15,
+    2002: 14,
+    2003: 15,
+    2004: 27,
+    2005: 31,
+    2006: 22,
+    2007: 28,
+    2008: 25,
+    2009: 25,
+    2010: 29,
+    2011: 29,
+    2012: 23,
+    2013: 24,
+    2014: 24,
+    2015: 36,
+    2016: 40,
+    2017: 34,
+    2018: 32,
+    2019: 34,
+    2020: 52,
+    2021: 57,
+    2022: 69
+}
