@@ -1,8 +1,10 @@
 import os
+from huggingface_hub import login
 from dotenv import dotenv_values
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 config = dotenv_values(".env")
+login()
 
 # Load your model
 flan_t5 = AutoModelForSeq2SeqLM.from_pretrained(
