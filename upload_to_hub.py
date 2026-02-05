@@ -5,7 +5,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 config = dotenv_values(".env")
 HF_WRITE_TOKEN = config['HF_WRITE_TOKEN']
-login()
+login(token = HF_WRITE_TOKEN)
 
 # Load your model
 flan_t5 = AutoModelForSeq2SeqLM.from_pretrained(
