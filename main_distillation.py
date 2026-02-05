@@ -3,7 +3,6 @@ from scipy.stats import spearmanr,pearsonr
 import polars as pl
 import numpy as np
 from collections import defaultdict
-import wandb
 import pandas as pd
 import random
 import pathlib
