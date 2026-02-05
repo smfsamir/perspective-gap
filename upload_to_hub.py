@@ -4,6 +4,7 @@ from dotenv import dotenv_values
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 config = dotenv_values(".env")
+HF_TOKEN = config['HF_TOKEN']
 login()
 
 # Load your model
