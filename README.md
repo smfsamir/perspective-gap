@@ -1,4 +1,11 @@
+# Installation
+```
+python3.12 -m venv perspective_gap_venv
+pip install -r requirements.txt
+```
+
 # Instructions
+
 
 You can run the `perspective-gap` model on news articles on deadly force events by executing the `./run_perspective_gap.sh` script. It takes one command-line argument, for the name of the directory containing the news articles. The directory should be named as  `{PREFIX}_articles`, and you supply `PREFIX` to the script. For example, you could create a directory called `news_articles`, place your articles in there, and call `./run_perspective_gap.sh news`.  
 
@@ -19,5 +26,6 @@ The output will be printed by the script, using the artifacts in `data/{PREFIX}_
 ["victim-aligned", "no entity", "victim-aligned", "no entity", "no entity", "police-aligned", "police-aligned", "police-aligned", "no entity", "no entity", "no entity", "victim-aligned", "victim-aligned", "victim-aligned", "police-aligned", "police-aligned", "police-aligned", "no entity", "no entity", "victim-aligned", "police-aligned", "police-aligned", "victim-aligned", "victim-aligned", "police-aligned", "police-aligned", "no entity", "no entity", "police-aligned", "no entity", "police-aligned", "victim-aligned", "victim-aligned", "police-aligned", "police-aligned", "police-aligned", "no entity", "police-aligned", "police-aligned", "police-aligned", "victim-aligned", "victim-aligned", "victim-aligned", "victim-aligned", "victim-aligned", "no entity"]
 ```
 There is one label per paragraph in the article, so the number of elements in this list should be the same as the number of lines in the article JSON file. 
+
 
 
