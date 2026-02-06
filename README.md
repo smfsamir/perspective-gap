@@ -27,5 +27,9 @@ The output will be printed by the script, using the artifacts in `data/{PREFIX}_
 ```
 There is one label per paragraph in the article, so the number of elements in this list should be the same as the number of lines in the article JSON file. 
 
+## Memory requirements
+All of the analyses were run on an NVIDIA RTX A6000 GPU, with 49140MiB. It should also run on CPU just fine, but a bit slower of course. The model will run on a GPU if `torch.cuda.is_available()`, otherwise the CPU. 
+
+
 
 
