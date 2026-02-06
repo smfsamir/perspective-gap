@@ -12,10 +12,12 @@ You can run the `perspective-gap` model on news articles on deadly force events 
 ## Formatting of articles
 The articles in `{PREFIX}_articles` should be of the format `{index}_{victim_name}_{outlet}.json`, for example, `1_Chris Amyotte_The Tyee.json'. The format of the file should be:
 ```
-[
-  "The family of a man who died after....",
-  "Moments after being hit in the back...",
-]
+{
+  "article": [
+    "The family of a man who died after....",
+    "Moments after being hit in the back...",
+  ]
+}
 ```
 There should be one **paragraph** per line, as this is how the model was trained. The model is available here: `https://huggingface.co/smfsamir/perspective-gap`
 
@@ -29,6 +31,7 @@ There is one label per paragraph in the article, so the number of elements in th
 
 ## Memory requirements
 All of the analyses were run on an NVIDIA RTX A6000 GPU, with 49140MiB. It should also run on CPU just fine, but a bit slower of course. The model will run on a GPU if `torch.cuda.is_available()`, otherwise the CPU. 
+
 
 
 
