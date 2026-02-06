@@ -77,6 +77,6 @@ echo ""
 for file in data/${ARTICLE_FOLDER_PREFIX}_inference_predictions/*; do
   echo "Contents of $file:"
   cat "$file"
-  echo ""
+  echo "\n"
   echo "-----------------------------------"
 done
