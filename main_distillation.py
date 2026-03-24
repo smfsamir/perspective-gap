@@ -729,6 +729,7 @@ def analyze_large_scale_inference(input_file_prefix):
     logger.info(f"Failed indices: {failed_indices}")
 
 @click.command()
+@click.argument("input_file_prefix", type=str)
 def view_stratified_discourse_passages(input_file_prefix: str):
     for article in load_all_articles(input_file_prefix + "_articles"):
         article_name = article.split('/')[-1]
