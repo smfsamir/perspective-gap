@@ -728,6 +728,17 @@ def analyze_large_scale_inference(input_file_prefix):
             failed_indices.append(index)
     logger.info(f"Failed indices: {failed_indices}")
 
+@click.command()
+def view_stratified_discourse_passages(input_file_prefix: str):
+    for article in load_all_articles(input_file_prefix + "_articles"):
+        article_name = article.split('/')[-1]
+        paragraphs = load_unsupervised_article_paragraphs(article_name, input_file_prefix + "_articles")
+        with open(f"data/{input_file_prefix}_inference_predictions/{article_name}", 'r') as f:
+            predictions = json.load(f)
+        print(f"Article: {article_name}")
+        for i, (paragraph, prediction) in enumerate(zip(paragraphs, predictions)):
+            print(f"Paragraph {i+1} (Predicted label: {prediction}): {paragraph}\n")
+
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
 main.add_command(compute_required_memory)
@@ -738,6 +749,7 @@ main.add_command(create_coref_training_dataset)
 main.add_command(check_agreement)
 main.add_command(run_large_scale_inference)
 main.add_command(analyze_large_scale_inference) # TODO: create a new file for every article, lining up with the large dataset. Should basically be able to do a .join with it.
+main.add_command(view_stratified_discourse_passages)
 # main.add_command(obtain_train_eval_test_split)
 # main.add_command(create_distillation_examples_task1)
 
