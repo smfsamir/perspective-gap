@@ -738,7 +738,8 @@ def view_stratified_discourse_passages(input_file_prefix: str):
             predictions = json.load(f)
         article_title = json.load(open(os.path.join(input_file_prefix + "_articles", article_name)))['title']
         publisher = json.load(open(os.path.join(input_file_prefix + "_articles", article_name)))['publisher']
-        print(f"====={article_title}: {publisher}=====")
+        date_published = json.load(open(os.path.join(input_file_prefix + "_articles", article_name)))['date_published']
+        print(f"===== {publisher} ({date_published}): {article_title}=====")
         for i, (paragraph, prediction) in enumerate(zip(paragraphs, predictions)):
             print(f"Paragraph {i+1} (Predicted label: {prediction}): {paragraph}\n")
 
