@@ -736,7 +736,9 @@ def view_stratified_discourse_passages(input_file_prefix: str):
         paragraphs = load_unsupervised_article_paragraphs(article_name, input_file_prefix + "_articles")
         with open(f"data/{input_file_prefix}_inference_predictions/{article_name}", 'r') as f:
             predictions = json.load(f)
-        print(f"=====Article: {article_name}=====")
+        article_title = json.load(open(os.path.join(input_file_prefix + "_articles", article_name)))['title']
+        publisher = json.load(open(os.path.join(input_file_prefix + "_articles", article_name)))['publisher']
+        print(f"====={article_title}: {publisher}=====")
         for i, (paragraph, prediction) in enumerate(zip(paragraphs, predictions)):
             print(f"Paragraph {i+1} (Predicted label: {prediction}): {paragraph}\n")
 

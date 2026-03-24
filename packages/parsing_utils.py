@@ -82,6 +82,8 @@ def load_repaired_articles(path: str="data/repaired_coref_annotations") -> Itera
 
 def load_all_articles(path: str="data/articles") -> Iterable[str]:
     articles = os.listdir(path)
+    # sort the articles by date published. The date published is contained in the .json file, as 'date_published'
+    articles = sorted(articles, key=lambda x: json.load(open(f'{path}/{x}', 'r'))['date_published'])
     # return only the filename (+ extension), not the full path
     return articles
 
