@@ -16,7 +16,9 @@ The articles in `{PREFIX}_articles` should be of the format `{index}_{victim_nam
   "article": [
     "The family of a man who died after....",
     "Moments after being hit in the back...",
-  ]
+  ],
+  "date_published": "2025-12-12",
+  "publisher": "The Tyee"
 }
 ```
 There should be one **paragraph** per line, as this is how the model was trained. The model is available here: `https://huggingface.co/smfsamir/perspective-gap`
