@@ -42,7 +42,7 @@ run_step() {
 # Step 1: Coreference Resolution
 echo "[Step 1/3] Running coreference resolution"
 run_step "Computing FastCoref annotations" \
-  python main_unsupervised.py compute-fastcoref-annotations new_articles "$ARTICLE_FOLDER_PREFIX" || exit 1
+  python main_unsupervised.py compute-fastcoref-annotations "${ARTICLE_FOLDER_PREFIX}_articles" "$ARTICLE_FOLDER_PREFIX" || exit 1
 
 run_step "Computing article basis coref objects" \
   python main_unsupervised.py compute-article-basis-coref-objects "$ARTICLE_FOLDER_PREFIX" || exit 1

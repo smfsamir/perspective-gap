@@ -134,7 +134,13 @@ def compute_fastcoref_annotations(folder: str, output_filename: str):
     fcoref_annotations = []
     for article in all_articles:
         with open(f'{folder}/{article}', 'r') as f:
-            paragraphs = json.load(f)['article']
+            article_obj = json.load(f)
+            if type(article_obj) == list:
+                paragraphs = article_obj
+            elif type(article_obj) == dict:
+                paragraphs = article_obj['article']
+            else:
+                raise ValueError(f"Unexpected type for the articles: {type(article_obj)}")
         fcoref_annotations.append(
             compute_fastcoref_annotation(model, paragraphs, article) 
         )

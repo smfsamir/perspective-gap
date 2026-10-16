@@ -64,7 +64,13 @@ def load_article_paragraphs(article: str, path="data/articles") -> List[str]:
 
 def load_unsupervised_article_paragraphs(article: str, path="unsupervised_articles") -> List[str]:
     with open(f'{path}/{article}', 'r') as f:
-        paragraphs = json.load(f)['article']
+        article_obj = json.load(f)
+        if type(article_obj) == list:
+            paragraphs = article_obj
+        elif type(article_obj) == dict:
+            paragraphs = article_obj['article']
+        else:
+            raise ValueError(f"Unexpected type for article object: {type(article_obj)}")
     return paragraphs
 
 def retrieve_entity_from_coref_objs(coref_objs: List[CorefEntityMetadata], 

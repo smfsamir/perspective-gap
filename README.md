@@ -12,14 +12,10 @@ You can run the `perspective-gap` model on news articles on deadly force events 
 ## Formatting of articles
 The articles in `{PREFIX}_articles` should be of the format `{index}_{victim_name}_{outlet}.json`, for example, `1_Chris Amyotte_The Tyee.json'. The format of the file should be:
 ```
-{
-  "article": [
-    "The family of a man who died after....",
-    "Moments after being hit in the back...",
-  ],
-  "date_published": "2025-12-12",
-  "publisher": "The Tyee"
-}
+[
+"The family of a man who died after....",
+"Moments after being hit in the back...",
+]
 ```
 There should be one **paragraph** per line, as this is how the model was trained. The model is available here: `https://huggingface.co/smfsamir/perspective-gap`
 
