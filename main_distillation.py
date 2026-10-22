@@ -24,7 +24,7 @@ from typing import List, Dict, Optional, Iterable
 from transformers import AutoModelForCausalLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling, AutoModelForTokenClassification
 from dataclasses import dataclass
 from datasets import load_dataset, Dataset
-from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP
+from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP, LABELS
 from packages.parsing_utils import CorefEntityMetadata, get_manual_annotation_occurrences, load_all_articles,\
     load_article_paragraphs, load_repaired_articles,\
     load_training_data_annotations_for_person, extract_enumerated_paragraphs,\
@@ -797,6 +797,8 @@ def prompt_tune_qwen():
         return response_dict
 
     start = perf_counter()
+    all_responses = []
+    all_ground_truths = []
     for fname in os.listdir('annotated_articles'):
         index = int(fname.split('_')[0])
         if index not in TUNING_INDICES:
@@ -851,10 +853,12 @@ def prompt_tune_qwen():
         responses.append(response)
 
         ground_truths = convert_to_ternary_label_list_annotations(complete_annotations[fname], num_paragraphs)
+
+        all_responses.extend(predictions)
+        all_ground_truths.extend(ground_truths)
         print(f"Predictions: {predictions}")
         print(f"Ground-truths: {ground_truths}")
-        ipdb.set_trace()
-
+    print(classification_report(all_ground_truths, all_responses, labels=LABELS))
     logger.info(f"The loop took {perf_counter() - start} seconds.")
 
 main.add_command(distill_flant5)
