@@ -842,7 +842,7 @@ def prompt_tune_qwen():
         state-aligned; if they side more with the victim, they are civilian-aligned.
 
         Output a JSON object containing ONLY the lines that express a perspective. Every line you leave
-        out is treated as having no perspective. Use the line number as the key, for example:
+        out is treated as having no perspective. If a line shows more than one perspective, use the label and entity that is more prominent. Use the line number as the key, for example:
         {"3": {"entity": "SIU", "label": "state-aligned"}, "7": {"entity": "victim's sister", "label": "civilian-aligned"}}
         Use the most specific name the article gives for the entity (e.g. "Toronto Police Service"
         rather than "police" if it is named). Output only the JSON object.
