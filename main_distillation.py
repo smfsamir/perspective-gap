@@ -783,10 +783,16 @@ def view_stratified_discourse_passages(input_file_prefix: str):
         for i, (paragraph, prediction) in enumerate(zip(paragraphs, predictions)):
             print(f"Paragraph {i+1} (Predicted label: {prediction}): {paragraph}\n")
 
+
 @click.command()
 def prompt_tune_qwen():
     generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
     responses = []
+
+    def parse_qwen_response(qwen_response: str):
+        start_index = qwen_response.find("{")
+        end_index = qwen_response.rfind("}")
+        return qwen_response[start_index: end_index + 1]
 
     with open('data/annotations/A_annotations_anonymized_complete.json') as f:
         complete_annotations = json.load(f)
@@ -848,6 +854,7 @@ def prompt_tune_qwen():
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
         num_paragraphs = len(article_lines)
         response = generator(prompt)
+        response = parse_qwen_response(response)
         try:
             response = json.loads(response)
         except JSONDecodeError:
