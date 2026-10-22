@@ -806,6 +806,8 @@ def prompt_tune_qwen():
     start = perf_counter()
     all_responses = []
     all_ground_truths = []
+    num_failures = 0
+    total = 0
     for fname in os.listdir('annotated_articles'):
         index = int(fname.split('_')[0])
         if index not in TUNING_INDICES:
@@ -859,6 +861,9 @@ def prompt_tune_qwen():
             response = json.loads(response)
         except JSONDecodeError:
             logger.error(f"Failed to decode this response:\n{response}")
+            num_failures += 1
+            total += 1
+            continue
 
         predictions_dict = extract_predictions_from_dict(response)
         predictions = convert_to_ternary_label_list_inference(predictions_dict, 
@@ -871,8 +876,10 @@ def prompt_tune_qwen():
         all_ground_truths.extend(ground_truths)
         print(f"Predictions: {predictions}")
         print(f"Ground-truths: {ground_truths}")
+        total += 1
     print(classification_report(all_ground_truths, all_responses, labels=LABELS))
     logger.info(f"The loop took {perf_counter() - start} seconds.")
+    logger.warning(f"{num_failures}/{total} cases failed")
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
