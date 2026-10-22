@@ -1,4 +1,5 @@
 from tqdm import tqdm
+import textwrap
 from scipy.stats import spearmanr,pearsonr
 import polars as pl
 import numpy as np
@@ -782,30 +783,50 @@ def view_stratified_discourse_passages(input_file_prefix: str):
 @click.command()
 def prompt_tune_qwen():
     generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
-    sample_file = "annotated_articles/30_Hoss Lightning_CBC.json"
+    sample_file = "annotated_articles/9_Matt Dumas_CBC.json"
+    INSTRUCTIONS = textwrap.dedent("""
+    Each numbered line above is a paragraph from a news article about a death involving police.
+    For every line that expresses the perspective of a specific actor, say whose perspective it is
+    and whether that actor is state-aligned or civilian-aligned.
+
+    What counts as a perspective:
+    - A quote, indirect speech, or paraphrase of an actor's statement, belief, perception, judgement,
+      decision, intention or emotion.
+    - Statements of not knowing or not disclosing ("Police could not say whether...",
+      "X declined to comment") count as that actor's perspective.
+    - Institutional decisions count ("The SIU has designated the officer as the subject of its probe").
+    - Attribution can carry over: a line with no attribution of its own continues the previous
+      speaker's perspective until a new source is introduced or the text returns to neutral narration.
+      For example, a paragraph that is only a quote, right after a paragraph quoting the victim's
+      sister, is the sister's perspective.
+    - NOT a perspective: neutral narration of events, and things the news outlet itself reports
+      ("Postmedia has learned...").
+
+    State-aligned: government and policing actors, whether organizations or the individuals working
+    for them, including police services, officers, police chiefs, police unions, mayors and other
+    officials, and police oversight bodies (e.g. SIU, IIO, ASIRT, BEI). They are state-aligned even
+    when their statements sound sympathetic.
+
+    Civilian-aligned: the victim, and the victim's family, friends, lawyer, and community members
+    who knew them; civil rights or advocacy organizations. Include family members even if they are
+    not named (e.g. "his sister").
+
+    Bystanders and witnesses: decide from what they say. If they side more with the police, they are
+    state-aligned; if they side more with the victim, they are civilian-aligned.
+
+    Output a JSON object containing ONLY the lines that express a perspective. Every line you leave
+    out is treated as having no perspective. Use the line number as the key, for example:
+    {"3": {"entity": "SIU", "label": "state-aligned"}, "7": {"entity": "victim's sister", "label": "civilian-aligned"}}
+    Use the most specific name the article gives for the entity (e.g. "Toronto Police Service"
+    rather than "police" if it is named). Output only the JSON object.
+    """).strip()
+
     with open(sample_file) as f:
         article_lines = json.load(f)
-        prompt = "Consider the news article below:\n\n" +\
-        "\n".join([f"{i}. {line}" for i, line in enumerate(article_lines)]) +\
-        "\n\nAssign each line number to whether it represents the perspective of a state-aligned entity," +\
-        " a civilian-aligned entity," +\
-        " or no entity." +\
-        """
-        state-aligned entities:
-        - Government and policing entities (both organizations and individuals working for them) are always police-aligned. Even if their statements are ostensibly sympathetic, they should always be considered police-aligned. This includes police chiefs, mayors, police oversight bodies, police unions, etc. 
-        - Attempt to identify the specific police department, if it is explicity named. Otherwise use the generic term "police"
-        - There may also be eyewitnesses who take the side of the police. For these bystanders, it  is important to take their quotes into account to determine their affiliation. If their opinion sympathizes with the police more than the victim, assign them police-aligned. 
-
-        civilian-aligned entities:
-        - Entities who side with the civilian victim, on the other hand, tend to be, of course, the victim's family or friends, their attorney, community members who knew the victim, witnesses, civil rights organization, and more.
-        - If a person is clearly identified as a family member or friend (e.g., "my dad," "his sister," "the victim's mother"), but their name is not mentioned, you should still include them.
-        - Bystanders may take the side of the victim.  For these bystanders, it  is important to take their quotes into account to determine their affiliation. If their opinion sympathizes with the victim more than the police, assign them victim-aligned. 
-
-        A perspective can be given through a quote, a paraphrase, or a description of the entity's opinions or feelings. 
-        Return your response in the form of a json dictionary where the key is a line number and the value is one of "state-aligned/civilian-aligned/no entity".
-        """
+    numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
+    prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
     response = generator(prompt)
-    print(response)
+    logger.info(f"Response below:\n{response}")
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
