@@ -24,7 +24,7 @@ from typing import List, Dict, Optional, Iterable
 from transformers import AutoModelForCausalLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling, AutoModelForTokenClassification
 from dataclasses import dataclass
 from datasets import load_dataset, Dataset
-from packages.constants import DEV_SUBJECTS, TUNING_INDICES
+from packages.constants import DEV_SUBJECTS, TUNING_INDICES, OLD_TO_NEW_LABEL_MAP
 from packages.parsing_utils import CorefEntityMetadata, get_manual_annotation_occurrences, load_all_articles,\
     load_article_paragraphs, load_repaired_articles,\
     load_training_data_annotations_for_person, extract_enumerated_paragraphs,\
@@ -850,7 +850,9 @@ def prompt_tune_qwen():
                                                               num_paragraphs)
         responses.append(response)
 
-        ground_truths = convert_to_ternary_label_list(complete_annotations[fname], num_paragraphs)
+        ground_truths = [OLD_TO_NEW_LABEL_MAP[label] for label in convert_to_ternary_label_list(complete_annotations[fname], num_paragraphs)]
+        print(f"Predictions: {predictions}")
+        print(f"Ground-truths: {ground_truths}")
         ipdb.set_trace()
 
     logger.info(f"The loop took {perf_counter() - start} seconds.")
