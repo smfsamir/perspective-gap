@@ -787,7 +787,7 @@ def prompt_tune_qwen():
     generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
     responses = []
 
-    with open('annotations/A_annotations_anonymized_complete.json') as f:
+    with open('data/annotations/A_annotations_anonymized_complete.json') as f:
         complete_annotations = json.load(f)
     
     def extract_predictions_from_dict(qwen_labels):
