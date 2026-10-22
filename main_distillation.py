@@ -1,4 +1,6 @@
 from tqdm import tqdm
+from time import perf_counter
+import timeit
 import textwrap
 from scipy.stats import spearmanr,pearsonr
 import polars as pl
@@ -22,7 +24,7 @@ from typing import List, Dict, Optional, Iterable
 from transformers import AutoModelForCausalLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling, AutoModelForTokenClassification
 from dataclasses import dataclass
 from datasets import load_dataset, Dataset
-from packages.constants import DEV_SUBJECTS
+from packages.constants import DEV_SUBJECTS, TUNING_INDICES
 from packages.parsing_utils import CorefEntityMetadata, get_manual_annotation_occurrences, load_all_articles,\
     load_article_paragraphs, load_repaired_articles,\
     load_training_data_annotations_for_person, extract_enumerated_paragraphs,\
@@ -783,50 +785,75 @@ def view_stratified_discourse_passages(input_file_prefix: str):
 @click.command()
 def prompt_tune_qwen():
     generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
-    sample_file = "annotated_articles/9_Matt Dumas_CBC.json"
-    INSTRUCTIONS = textwrap.dedent("""
-    Each numbered line above is a paragraph from a news article about a death involving police.
-    For every line that expresses the perspective of a specific actor, say whose perspective it is
-    and whether that actor is state-aligned or civilian-aligned.
+    responses = []
 
-    What counts as a perspective:
-    - A quote, indirect speech, or paraphrase of an actor's statement, belief, perception, judgement,
-      decision, intention or emotion.
-    - Statements of not knowing or not disclosing ("Police could not say whether...",
-      "X declined to comment") count as that actor's perspective.
-    - Institutional decisions count ("The SIU has designated the officer as the subject of its probe").
-    - Attribution can carry over: a line with no attribution of its own continues the previous
-      speaker's perspective until a new source is introduced or the text returns to neutral narration.
-      For example, a paragraph that is only a quote, right after a paragraph quoting the victim's
-      sister, is the sister's perspective.
-    - NOT a perspective: neutral narration of events, and things the news outlet itself reports
-      ("Postmedia has learned...").
+    with open('annotations/A_annotations_anonymized_complete.json') as f:
+        complete_annotations = json.load(f)
+    
+    def extract_predictions_from_dict(qwen_labels):
+        response_dict = {}
+        for paragraph_num, labels in qwen_labels.items():
+            response_dict[int(paragraph_num)] = labels['label']
+        return response_dict
 
-    State-aligned: government and policing actors, whether organizations or the individuals working
-    for them, including police services, officers, police chiefs, police unions, mayors and other
-    officials, and police oversight bodies (e.g. SIU, IIO, ASIRT, BEI). They are state-aligned even
-    when their statements sound sympathetic.
+    start = perf_counter()
+    for fname in os.listdir('annotated_articles'):
+        index = int(fname.split('_')[0])
+        if index not in TUNING_INDICES:
+            continue
+        sample_file = f"annotated_articles/{fname}"
+        INSTRUCTIONS = textwrap.dedent("""
+        Each numbered line above is a paragraph from a news article about a death involving police.
+        For every line that expresses the perspective of a specific actor, say whose perspective it is
+        and whether that actor is state-aligned or civilian-aligned.
 
-    Civilian-aligned: the victim, and the victim's family, friends, lawyer, and community members
-    who knew them; civil rights or advocacy organizations. Include family members even if they are
-    not named (e.g. "his sister").
+        What counts as a perspective:
+        - A quote, indirect speech, or paraphrase of an actor's statement, belief, perception, judgement,
+        decision, intention or emotion.
+        - Statements of not knowing or not disclosing ("Police could not say whether...",
+        "X declined to comment") count as that actor's perspective.
+        - Institutional decisions count ("The SIU has designated the officer as the subject of its probe").
+        - Attribution can carry over: a line with no attribution of its own continues the previous
+        speaker's perspective until a new source is introduced or the text returns to neutral narration.
+        For example, a paragraph that is only a quote, right after a paragraph quoting the victim's
+        sister, is the sister's perspective.
+        - NOT a perspective: neutral narration of events, and things the news outlet itself reports
+        ("Postmedia has learned...").
 
-    Bystanders and witnesses: decide from what they say. If they side more with the police, they are
-    state-aligned; if they side more with the victim, they are civilian-aligned.
+        State-aligned: government and policing actors, whether organizations or the individuals working
+        for them, including police services, officers, police chiefs, police unions, mayors and other
+        officials, and police oversight bodies (e.g. SIU, IIO, ASIRT, BEI). They are state-aligned even
+        when their statements sound sympathetic.
 
-    Output a JSON object containing ONLY the lines that express a perspective. Every line you leave
-    out is treated as having no perspective. Use the line number as the key, for example:
-    {"3": {"entity": "SIU", "label": "state-aligned"}, "7": {"entity": "victim's sister", "label": "civilian-aligned"}}
-    Use the most specific name the article gives for the entity (e.g. "Toronto Police Service"
-    rather than "police" if it is named). Output only the JSON object.
-    """).strip()
+        Civilian-aligned: the victim, and the victim's family, friends, lawyer, and community members
+        who knew them; civil rights or advocacy organizations. Include family members even if they are
+        not named (e.g. "his sister").
 
-    with open(sample_file) as f:
-        article_lines = json.load(f)
-    numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
-    prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
-    response = generator(prompt)
-    logger.info(f"Response below:\n{response}")
+        Bystanders and witnesses: decide from what they say. If they side more with the police, they are
+        state-aligned; if they side more with the victim, they are civilian-aligned.
+
+        Output a JSON object containing ONLY the lines that express a perspective. Every line you leave
+        out is treated as having no perspective. Use the line number as the key, for example:
+        {"3": {"entity": "SIU", "label": "state-aligned"}, "7": {"entity": "victim's sister", "label": "civilian-aligned"}}
+        Use the most specific name the article gives for the entity (e.g. "Toronto Police Service"
+        rather than "police" if it is named). Output only the JSON object.
+        """).strip()
+
+        with open(sample_file) as f:
+            article_lines = json.load(f)
+        numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
+        prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
+        num_paragraphs = len(article_lines)
+        response = generator(prompt)
+        predictions_dict = extract_predictions_from_dict(response)
+        predictions = convert_to_ternary_label_list_inference(predictions_dict, 
+                                                              num_paragraphs)
+        responses.append(response)
+
+        ground_truths = convert_to_ternary_label_list(complete_annotations[fname], num_paragraphs)
+        ipdb.set_trace()
+
+    logger.info(f"The loop took {perf_counter() - start} seconds.")
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
