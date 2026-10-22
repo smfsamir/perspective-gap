@@ -34,7 +34,7 @@ from packages.flan_utils import compute_metrics_tokenized_batch, generate_single
     generate_predictions_tokenized_batch, convert_text_to_entity_present_label,\
     is_valid_entity_present, is_police_aligned_entity, extract_relevant_paragraphs,\
     convert_to_ternary_label_list, reduce_affinities_to_individual_prediction,\
-    convert_to_ternary_label_list_inference
+    convert_to_ternary_label_list_inference, convert_to_ternary_label_list_annotations
 from packages.qwen import load_model_generator
 
 config = dotenv_values(".env")
@@ -850,7 +850,8 @@ def prompt_tune_qwen():
                                                               num_paragraphs)
         responses.append(response)
 
-        ground_truths = [OLD_TO_NEW_LABEL_MAP[label] for label in convert_to_ternary_label_list(complete_annotations[fname], num_paragraphs)]
+        ground_truths = [OLD_TO_NEW_LABEL_MAP[label] for label in\
+                          convert_to_ternary_label_list_annotations(complete_annotations[fname], num_paragraphs)]
         print(f"Predictions: {predictions}")
         print(f"Ground-truths: {ground_truths}")
         ipdb.set_trace()
