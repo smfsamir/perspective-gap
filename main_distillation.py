@@ -844,7 +844,7 @@ def prompt_tune_qwen():
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
         num_paragraphs = len(article_lines)
-        response = generator(prompt)
+        response = json.loads(generator(prompt))
         predictions_dict = extract_predictions_from_dict(response)
         predictions = convert_to_ternary_label_list_inference(predictions_dict, 
                                                               num_paragraphs)
