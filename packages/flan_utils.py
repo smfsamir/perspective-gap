@@ -146,8 +146,8 @@ def reduce_affinities_to_individual_prediction(
     return paragraph_to_affinities
 
 
-def convert_to_ternary_label_list(gt_paragraph_to_affinity, 
-               predicted_paragraph_to_affinity, 
+def convert_to_ternary_label_list(gt_paragraph_to_affinity: Dict[int, str], 
+               predicted_paragraph_to_affinity: Dict[int, str], 
                num_paragraphs_in_article):
     gt_paragraph_to_affinity = gt_paragraph_to_affinity.copy()
     predicted_paragraph_to_affinity = predicted_paragraph_to_affinity.copy()
@@ -157,7 +157,7 @@ def convert_to_ternary_label_list(gt_paragraph_to_affinity,
             gt_paragraph_to_affinity[i] = 'no entity'
         if i not in predicted_paragraph_to_affinity:
             predicted_paragraph_to_affinity[i] = 'no entity'
-    assert len(gt_paragraph_to_affinity) == len(predicted_paragraph_to_affinity)
+    assert len(gt_paragraph_to_affinity) == len(predicted_paragraph_to_affinity), ipdb.set_trace()
     y_true = []
     y_pred = []
     for i in range(1, num_paragraphs_in_article + 1):
@@ -166,7 +166,7 @@ def convert_to_ternary_label_list(gt_paragraph_to_affinity,
     return y_true, y_pred
 
 def convert_to_ternary_label_list_inference( 
-               predicted_paragraph_to_affinity, 
+               predicted_paragraph_to_affinity: Dict[int, str], 
                num_paragraphs_in_article):
     predicted_paragraph_to_affinity = predicted_paragraph_to_affinity.copy()
     # add any missing paragraphs as 'no entity', to both dictionaries.
@@ -177,3 +177,12 @@ def convert_to_ternary_label_list_inference(
     for i in range(1, num_paragraphs_in_article + 1):
         y_pred.append(predicted_paragraph_to_affinity[i])
     return y_pred
+
+def convert_to_ternary_label_list_annotations(annotations: Dict[str, str], num_paragraphs: int) -> List[str]:
+    ternarized_annotations = []
+    for i in range(1, num_paragraphs + 1):
+        if f"paragraph {i}" in annotations:
+            ternarized_annotations.append(annotations[f"paragraph {i}"])
+        else:
+            ternarized_annotations.append('no entity')
+    return ternarized_annotations
