@@ -1,6 +1,7 @@
 from tqdm import tqdm
 from time import perf_counter
 import timeit
+from json.decoder import JSONDecodeError
 import textwrap
 from scipy.stats import spearmanr,pearsonr
 import polars as pl
@@ -846,7 +847,12 @@ def prompt_tune_qwen():
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
         num_paragraphs = len(article_lines)
-        response = json.loads(generator(prompt))
+        response = generator(prompt)
+        try:
+            response = json.loads(response)
+        except JSONDecodeError:
+            logger.error(f"Failed to decode this response:\n{response}")
+
         predictions_dict = extract_predictions_from_dict(response)
         predictions = convert_to_ternary_label_list_inference(predictions_dict, 
                                                               num_paragraphs)
