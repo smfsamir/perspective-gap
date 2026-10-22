@@ -32,6 +32,7 @@ from packages.flan_utils import compute_metrics_tokenized_batch, generate_single
     is_valid_entity_present, is_police_aligned_entity, extract_relevant_paragraphs,\
     convert_to_ternary_label_list, reduce_affinities_to_individual_prediction,\
     convert_to_ternary_label_list_inference
+from packages.qwen import load_model_generator
 
 config = dotenv_values(".env")
 logger = loguru.logger
@@ -640,6 +641,46 @@ def obtain_train_eval_test_split():
     }
 
 @click.command()
+def check_agreement_anonymized():
+    # TODO: convert the annotations from 'paragraph {num}' to 'num key'
+    def open_annotations(fname: str):
+        with open(fname) as f:
+            return json.load(f)
+    
+    def convert_to_integer_keys(annotations: Dict):
+        new_annotations = {}
+        for article, article_annotations in tqdm(annotations.items()):
+            int_annotations = {}
+            for paragraph_num, annotation in article_annotations.items():
+                try:
+                    int_annotations[int(paragraph_num.split(' ')[1])] = annotation
+                except AttributeError:
+                    logger.warning(f"Check out {paragraph_num}")
+                    ipdb.set_trace()
+            new_annotations[article] = int_annotations
+        return new_annotations
+
+    complete_annotations = open_annotations("data/annotations/A_annotations_anonymized_complete.json")
+    partial_annotations = open_annotations("data/annotations/B_annotations_anonymized_partial.json")
+    complete_annotations = convert_to_integer_keys(complete_annotations)
+    partial_annotations = convert_to_integer_keys(partial_annotations)
+
+
+    all_gt_annotations = []
+    all_indep_annotations = []
+    for article in partial_annotations.keys():
+        num_paragraphs = len(load_article_paragraphs(article, path="/Users/smfsamir/sympathy-in-media/data/articles")) #NOTE: only works if you have TIMC database.
+        y_one, y_two = convert_to_ternary_label_list(
+            complete_annotations[article], 
+            partial_annotations[article], 
+            num_paragraphs
+        )
+        all_gt_annotations.extend(y_one)
+        all_indep_annotations.extend(y_two)
+    score = cohen_kappa_score(all_gt_annotations, all_indep_annotations, labels=['state-aligned', 'civilian-aligned', 'no entity'])
+    logger.info(f"Agreement: {score:.3f}")
+
+@click.command()
 def check_agreement():
     with open("data/02_annotations.json", 'r') as f:
         articles = list(json.load(f).keys())
@@ -680,17 +721,11 @@ def check_agreement():
     avg_random_score = sum(random_scores) / len(random_scores)
     print(f"Average randomized Cohen's kappa score: {avg_random_score}")
 
-
     logger.info(f"Cohen's kappa score: {score}")
     print(len(all_gt_annotations))
     # compute the f1 score for police-aligned vs not police-aligned
     report = classification_report(all_indep_annotations, all_gt_annotations, labels=['police-aligned', 'victim-aligned', 'no entity'])
     print(report)
-
-
-
-
-
     # are there any cases where all_gt_annotations[i] is 'police' and all_indep_annotations[i] is 'victim' or vice versa?
     # polar_disagreements = 0
     # for i in range(len(all_gt_annotations)):
@@ -699,6 +734,7 @@ def check_agreement():
     #         logger.warning(f"Disagreement at index {i}: GT={all_gt_annotations[i]}, Indep={all_indep_annotations[i]}")
     #         polar_disagreements += 1
     # logger.info(f"{polar_disagreements}/{len(all_gt_annotations)} polar disagreements found.")
+
 
 @click.command()
 @click.argument("input_file_prefix", type=str)
@@ -743,6 +779,34 @@ def view_stratified_discourse_passages(input_file_prefix: str):
         for i, (paragraph, prediction) in enumerate(zip(paragraphs, predictions)):
             print(f"Paragraph {i+1} (Predicted label: {prediction}): {paragraph}\n")
 
+@click.command()
+def prompt_tune_qwen():
+    generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
+    sample_file = "annotated_articles/30_Hoss Lightning_CBC.json"
+    with open(sample_file) as f:
+        article_lines = json.load(f)
+        prompt = "Consider the news article below:\n\n" +\
+        "\n".join([f"{i}. {line}" for i, line in enumerate(article_lines)]) +\
+        "\n\nAssign each line number to whether it represents the perspective of a state-aligned entity," +\
+        " a civilian-aligned entity," +\
+        " or no entity." +\
+        """
+        state-aligned entities:
+        - Government and policing entities (both organizations and individuals working for them) are always police-aligned. Even if their statements are ostensibly sympathetic, they should always be considered police-aligned. This includes police chiefs, mayors, police oversight bodies, police unions, etc. 
+        - Attempt to identify the specific police department, if it is explicity named. Otherwise use the generic term "police"
+        - There may also be eyewitnesses who take the side of the police. For these bystanders, it  is important to take their quotes into account to determine their affiliation. If their opinion sympathizes with the police more than the victim, assign them police-aligned. 
+
+        civilian-aligned entities:
+        - Entities who side with the civilian victim, on the other hand, tend to be, of course, the victim's family or friends, their attorney, community members who knew the victim, witnesses, civil rights organization, and more.
+        - If a person is clearly identified as a family member or friend (e.g., "my dad," "his sister," "the victim's mother"), but their name is not mentioned, you should still include them.
+        - Bystanders may take the side of the victim.  For these bystanders, it  is important to take their quotes into account to determine their affiliation. If their opinion sympathizes with the victim more than the police, assign them victim-aligned. 
+
+        A perspective can be given through a quote, a paraphrase, or a description of the entity's opinions or feelings. 
+        Return your response in the form of a json dictionary where the key is a line number and the value is one of "state-aligned/civilian-aligned/no entity".
+        """
+    response = generator(prompt)
+    print(response)
+
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
 main.add_command(compute_required_memory)
@@ -751,9 +815,11 @@ main.add_command(assess_baseline_ner_model)
 main.add_command(assess_ft_flan_model)
 main.add_command(create_coref_training_dataset)
 main.add_command(check_agreement)
+main.add_command(check_agreement_anonymized)
 main.add_command(run_large_scale_inference)
 main.add_command(analyze_large_scale_inference) # TODO: create a new file for every article, lining up with the large dataset. Should basically be able to do a .join with it.
 main.add_command(view_stratified_discourse_passages)
+main.add_command(prompt_tune_qwen)
 # main.add_command(obtain_train_eval_test_split)
 # main.add_command(create_distillation_examples_task1)
 
