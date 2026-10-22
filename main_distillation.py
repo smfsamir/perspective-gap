@@ -850,8 +850,7 @@ def prompt_tune_qwen():
                                                               num_paragraphs)
         responses.append(response)
 
-        ground_truths = [OLD_TO_NEW_LABEL_MAP[label] for label in\
-                          convert_to_ternary_label_list_annotations(complete_annotations[fname], num_paragraphs)]
+        ground_truths = convert_to_ternary_label_list_annotations(complete_annotations[fname], num_paragraphs)
         print(f"Predictions: {predictions}")
         print(f"Ground-truths: {ground_truths}")
         ipdb.set_trace()
