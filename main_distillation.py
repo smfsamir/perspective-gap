@@ -566,6 +566,10 @@ def create_hf_dataset_from_articles(articles: List[str],
     })
     return dataset
 
+# TODO: fill in.
+def create_qwen_hf_datasets():
+    pass
+
     
 @click.command()
 def create_coref_training_dataset():
@@ -786,7 +790,7 @@ def view_stratified_discourse_passages(input_file_prefix: str):
 
 @click.command()
 def prompt_tune_qwen():
-    generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
+    generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
     responses = []
 
     def parse_qwen_response(qwen_response: str):
@@ -828,6 +832,7 @@ def prompt_tune_qwen():
         speaker's perspective until a new source is introduced or the text returns to neutral narration.
         For example, a paragraph that is only a quote, right after a paragraph quoting the victim's
         sister, is the sister's perspective.
+        - Statements from a report produced by a state institution is also considered a state-aligned perspective.
         - NOT a perspective: neutral narration of events, and things the news outlet itself reports
         ("Postmedia has learned...").
 
