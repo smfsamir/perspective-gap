@@ -567,6 +567,7 @@ def create_hf_dataset_from_articles(articles: List[str],
     return dataset
 
 # TODO: fill in.
+@click.command()
 def create_qwen_hf_datasets():
     # produce training dataset
     train_prompts = []
