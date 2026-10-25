@@ -579,7 +579,7 @@ def create_qwen_hf_datasets():
         annotations = json.load(f)
     for fname in os.listdir("annotated_articles"):
         index = fname.split("_")[0]
-        with open("annotated_articles") as f:
+        with open(f"annotated_articles/{fname}") as f:
             article_lines = json.load(f)
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
