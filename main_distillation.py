@@ -578,7 +578,7 @@ def create_qwen_hf_datasets():
     with open(f"data/annotations/A_annotations_anonymized_complete.json") as f:
         annotations = json.load(f)
     for fname in os.listdir("annotated_articles"):
-        index = fname.split("_")[0]
+        index = int(fname.split("_")[0])
         with open(f"annotated_articles/{fname}") as f:
             article_lines = json.load(f)
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
