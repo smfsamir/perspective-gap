@@ -25,7 +25,7 @@ from typing import List, Dict, Optional, Iterable
 from transformers import AutoModelForCausalLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling, AutoModelForTokenClassification
 from dataclasses import dataclass
 from datasets import load_dataset, Dataset
-from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP, LABELS
+from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP, LABELS, QWEN_INSTRUCTIONS
 from packages.parsing_utils import CorefEntityMetadata, get_manual_annotation_occurrences, load_all_articles,\
     load_article_paragraphs, load_repaired_articles,\
     load_training_data_annotations_for_person, extract_enumerated_paragraphs,\
@@ -568,8 +568,40 @@ def create_hf_dataset_from_articles(articles: List[str],
 
 # TODO: fill in.
 def create_qwen_hf_datasets():
-    pass
+    # produce training dataset
+    train_prompts = []
+    train_completions = [] # dictionaries with
 
+    test_prompts = []
+    test_completions = []
+    with open(f"data/annotations/A_annotations_anonymized_complete.json") as f:
+        annotations = json.load(f)
+    for fname in os.listdir("annotated_articles"):
+        index = fname.split("_")[0]
+        with open("annotated_articles") as f:
+            article_lines = json.load(f)
+        numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
+        prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
+        completion = annotations[fname]
+
+        if index in TUNING_INDICES:
+            train_prompts.append(prompt)
+            train_completions.append(completion)
+        else:
+            test_prompts.append(prompt)
+            test_completions.append(completion)
+    train_dataset = Dataset.from_dict({
+        "prompt": train_prompts,
+        "completion": train_completions
+    })
+
+    test_dataset = Dataset.from_dict({
+        "prompt": test_prompts,
+        "completion": test_completions
+    })
+    train_dataset.save_to_disk(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
+    test_dataset.save_to_disk(f"{config['HF_CACHE_DIR']}/qwen_test_dataset")
+    logger.info(f"Saved to {config['HF_CACHE_DIR']}")
     
 @click.command()
 def create_coref_training_dataset():
@@ -817,48 +849,11 @@ def prompt_tune_qwen():
         if index not in TUNING_INDICES:
             continue
         sample_file = f"annotated_articles/{fname}"
-        INSTRUCTIONS = textwrap.dedent("""
-        Each numbered line above is a paragraph from a news article about a death involving police.
-        For every line that expresses the perspective of a specific actor, say whose perspective it is
-        and whether that actor is state-aligned or civilian-aligned.
-
-        What counts as a perspective:
-        - A quote, indirect speech, or paraphrase of an actor's statement, belief, perception, judgement,
-        decision, intention or emotion.
-        - Statements of not knowing or not disclosing ("Police could not say whether...",
-        "X declined to comment") count as that actor's perspective.
-        - Institutional decisions count ("The SIU has designated the officer as the subject of its probe").
-        - Attribution can carry over: a line with no attribution of its own continues the previous
-        speaker's perspective until a new source is introduced or the text returns to neutral narration.
-        For example, a paragraph that is only a quote, right after a paragraph quoting the victim's
-        sister, is the sister's perspective.
-        - Statements from a report produced by a state institution is also considered a state-aligned perspective.
-        - NOT a perspective: neutral narration of events, and things the news outlet itself reports
-        ("Postmedia has learned...").
-
-        State-aligned: government and policing actors, whether organizations or the individuals working
-        for them, including police services, officers, police chiefs, police unions, mayors and other
-        officials, and police oversight bodies (e.g. SIU, IIO, ASIRT, BEI). They are state-aligned even
-        when their statements sound sympathetic.
-
-        Civilian-aligned: the victim, and the victim's family, friends, lawyer, and community members
-        who knew them; civil rights or advocacy organizations. Include family members even if they are
-        not named (e.g. "his sister").
-
-        Bystanders and witnesses: decide from what they say. If they side more with the police, they are
-        state-aligned; if they side more with the victim, they are civilian-aligned.
-
-        Output a JSON object containing ONLY the lines that express a perspective. Every line you leave
-        out is treated as having no perspective. If a line shows more than one perspective, use the label and entity that is more prominent. Use the line number as the key, for example:
-        {"3": {"entity": "SIU", "label": "state-aligned"}, "7": {"entity": "victim's sister", "label": "civilian-aligned"}}
-        Use the most specific name the article gives for the entity (e.g. "Toronto Police Service"
-        rather than "police" if it is named). Output only the JSON object.
-        """).strip()
 
         with open(sample_file) as f:
             article_lines = json.load(f)
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
-        prompt = f"Consider the news article below:\n\n{numbered}\n\n{INSTRUCTIONS}"
+        prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
         num_paragraphs = len(article_lines)
         response = generator(prompt)
         response = parse_qwen_response(response)
@@ -899,6 +894,7 @@ main.add_command(run_large_scale_inference)
 main.add_command(analyze_large_scale_inference) # TODO: create a new file for every article, lining up with the large dataset. Should basically be able to do a .join with it.
 main.add_command(view_stratified_discourse_passages)
 main.add_command(prompt_tune_qwen)
+main.add_command(create_qwen_hf_datasets)
 # main.add_command(obtain_train_eval_test_split)
 # main.add_command(create_distillation_examples_task1)
 
