@@ -24,7 +24,7 @@ from typing import List, Dict, Optional, Iterable
 
 from transformers import AutoModelForCausalLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling, AutoModelForTokenClassification
 from dataclasses import dataclass
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, load_from_disk
 from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP, LABELS, QWEN_INSTRUCTIONS
 from packages.parsing_utils import CorefEntityMetadata, get_manual_annotation_occurrences, load_all_articles,\
     load_article_paragraphs, load_repaired_articles,\
@@ -890,7 +890,7 @@ def prompt_tune_qwen():
 
 @click.command()
 def peft_qwen():
-    train_dataset = load_dataset(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
+    train_dataset = load_from_disk(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
     train_peft_on_dataset(train_dataset, "Qwen/Qwen3-32B")
 
 main.add_command(distill_flant5)
