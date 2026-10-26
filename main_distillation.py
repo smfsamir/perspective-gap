@@ -585,6 +585,10 @@ def create_qwen_hf_datasets():
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
         completion = annotations[fname]
 
+        {"prompt": [{"role": "user", "content": prompt}],
+        "completion": [{"role": "assistant", "content": completion}],
+        "chat_template_kwargs": {"enable_thinking": False}}
+
         if index in TUNING_INDICES:
             train_prompts.append(prompt)
             train_completions.append(completion)
