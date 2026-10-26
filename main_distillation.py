@@ -36,7 +36,7 @@ from packages.flan_utils import compute_metrics_tokenized_batch, generate_single
     is_valid_entity_present, is_police_aligned_entity, extract_relevant_paragraphs,\
     convert_to_ternary_label_list, reduce_affinities_to_individual_prediction,\
     convert_to_ternary_label_list_inference, convert_to_ternary_label_list_annotations
-from packages.qwen import load_model_generator
+from packages.qwen import load_model_generator, train_peft_on_dataset
 
 config = dotenv_values(".env")
 logger = loguru.logger
@@ -603,6 +603,8 @@ def create_qwen_hf_datasets():
     train_dataset.save_to_disk(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
     test_dataset.save_to_disk(f"{config['HF_CACHE_DIR']}/qwen_test_dataset")
     logger.info(f"Saved to {config['HF_CACHE_DIR']}")
+
+
     
 @click.command()
 def create_coref_training_dataset():
@@ -882,6 +884,11 @@ def prompt_tune_qwen():
     logger.info(f"The loop took {perf_counter() - start} seconds.")
     logger.warning(f"{num_failures}/{total} cases failed")
 
+@click.command()
+def peft_qwen():
+    train_dataset = load_dataset(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
+    train_peft_on_dataset(train_dataset, "Qwen/Qwen3-32B")
+
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
 main.add_command(compute_required_memory)
@@ -896,6 +903,7 @@ main.add_command(analyze_large_scale_inference) # TODO: create a new file for ev
 main.add_command(view_stratified_discourse_passages)
 main.add_command(prompt_tune_qwen)
 main.add_command(create_qwen_hf_datasets)
+main.add_command(peft_qwen)
 # main.add_command(obtain_train_eval_test_split)
 # main.add_command(create_distillation_examples_task1)
 
