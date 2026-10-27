@@ -38,7 +38,7 @@ from packages.flan_utils import compute_metrics_tokenized_batch, generate_single
     convert_to_ternary_label_list_inference, convert_to_ternary_label_list_annotations
 from packages.qwen import load_model_generator, train_peft_on_dataset
 
-config = dotenv_values(".env")
+CONFIG = dotenv_values(".env")
 logger = loguru.logger
 # message = ["Language modeling is "]
 # inputs = tokenizer(message, return_tensors='pt', return_token_type_ids=False)
@@ -121,7 +121,7 @@ def distill_flant5():
 
     FLAN_TOKENIZER = AutoTokenizer.from_pretrained(
         "google/flan-t5-large", 
-        cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache")
+        cache_dir=os.path.join(CONFIG['SCRATCH_DIR'], "transformers_cache")
     )
 
     train_dataset = load_dataset("json", data_files={'train': "data/distillation_data/coref_training_dataset.json"}, split='train')
@@ -131,7 +131,7 @@ def distill_flant5():
     logger.info(f"Train valid entities proportion: {sum(train_dataset['valid_entity'])} / {len(train_dataset)}")
     logger.info(f"Eval valid entities proportion: {sum(dev_dataset['valid_entity'])} / {len(dev_dataset)}")
 
-    model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large", cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache"))
+    model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large", cache_dir=os.path.join(CONFIG['SCRATCH_DIR'], "transformers_cache"))
     new_tokens = ["{", "}"]
     new_tokens = set(new_tokens) - set(FLAN_TOKENIZER.vocab.keys())
     new_tokens = list(new_tokens)
@@ -149,7 +149,7 @@ def distill_flant5():
     )
     wandb.init(project="sympathy")
     training_arguments = Seq2SeqTrainingArguments(
-        output_dir=os.path.join(config['SCRATCH_DIR'], "sympathy_distillation"),
+        output_dir=os.path.join(CONFIG['SCRATCH_DIR'], "sympathy_distillation"),
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
         gradient_accumulation_steps=2,
@@ -218,8 +218,8 @@ def compute_required_memory():
 
 @click.command()
 def assess_baseline_ner_model():
-    tokenizer = AutoTokenizer.from_pretrained("dslim/bert-base-NER", cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache"))
-    model = AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER", cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache"))
+    tokenizer = AutoTokenizer.from_pretrained("dslim/bert-base-NER", cache_dir=os.path.join(CONFIG['SCRATCH_DIR'], "transformers_cache"))
+    model = AutoModelForTokenClassification.from_pretrained("dslim/bert-base-NER", cache_dir=os.path.join(CONFIG['SCRATCH_DIR'], "transformers_cache"))
     eval_dataset = load_dataset("json", data_files={'test': "data/distillation_data/distill_examples.json"}, split='test')
 
     eval_dataset = eval_dataset.map(
@@ -378,11 +378,11 @@ def evaluate_proportion_distribution_metric(dataset): #TODO: might have accident
 def assess_ft_flan_model():
     tokenizer = AutoTokenizer.from_pretrained(
         "google/flan-t5-large", 
-        cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache")
+        cache_dir=os.path.join(CONFIG['SCRATCH_DIR'], "transformers_cache")
     )
     flan_t5 = AutoModelForSeq2SeqLM.from_pretrained(
         pretrained_model_name_or_path=os.path.join(
-            config['SCRATCH_DIR'], 
+            CONFIG['SCRATCH_DIR'], 
             "sympathy_distillation", 
             "checkpoint-1300")
     ).to('cuda')
@@ -430,7 +430,7 @@ def assess_ft_flan_model():
 def run_large_scale_inference(input_file_prefix):
     tokenizer = AutoTokenizer.from_pretrained(
         "google/flan-t5-large", 
-        cache_dir=os.path.join(config['SCRATCH_DIR'], "transformers_cache")
+        cache_dir=os.path.join(CONFIG['SCRATCH_DIR'], "transformers_cache")
     )
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     flan_t5 = AutoModelForSeq2SeqLM.from_pretrained(
@@ -604,9 +604,9 @@ def create_qwen_hf_datasets():
         "prompt": test_prompts,
         "completion": test_completions
     })
-    train_dataset.save_to_disk(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
-    test_dataset.save_to_disk(f"{config['HF_CACHE_DIR']}/qwen_test_dataset")
-    logger.info(f"Saved to {config['HF_CACHE_DIR']}")
+    train_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_train_dataset")
+    test_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_test_dataset")
+    logger.info(f"Saved to {CONFIG['HF_CACHE_DIR']}")
 
 
     
@@ -890,8 +890,13 @@ def prompt_tune_qwen():
 
 @click.command()
 def peft_qwen():
-    train_dataset = load_from_disk(f"{config['HF_CACHE_DIR']}/qwen_train_dataset")
-    train_peft_on_dataset(train_dataset, "Qwen/Qwen3-32B")
+    train_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_train_dataset")
+    model = AutoModelForCausalLM.from_pretrained(
+    pretrained_model_name_or_path="Qwen/Qwen3-32B",
+    cache_dir=CONFIG['HF_CACHE_DIR'],
+    torch_dtype=torch.bfloat16,
+    device_map='cuda') # won't work without HF accelerate
+    train_peft_on_dataset(train_dataset, model)
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
