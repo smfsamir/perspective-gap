@@ -22,7 +22,11 @@ from dotenv import dotenv_values
 from typing import List, Dict, Optional, Iterable
 
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq, AutoModelForSeq2SeqLM, TrainingArguments, Trainer, DataCollatorForLanguageModeling, AutoModelForTokenClassification
+from transformers import AutoModelForCausalLM, AutoTokenizer,\
+Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq,\
+    AutoModelForSeq2SeqLM, AutoModelForTokenClassification,\
+    BitsAndBytesConfig
+from peft import prepare_model_for_kbit_training
 from dataclasses import dataclass
 from datasets import load_dataset, Dataset, load_from_disk
 from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP, LABELS, QWEN_INSTRUCTIONS
@@ -889,13 +893,28 @@ def prompt_tune_qwen():
     logger.warning(f"{num_failures}/{total} cases failed")
 
 @click.command()
-def peft_qwen():
+@click.option('--bnb', is_flag=True)
+def peft_qwen(bnb):
     train_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_train_dataset")
+    if bnb:
+        bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",              # the 4-bit format from the QLoRA paper
+        bnb_4bit_compute_dtype=torch.bfloat16,  # compute in BF16
+        bnb_4bit_use_double_quant=True,         # also compress the scaling factors, saves a little more memory
+        )
+        kwargs = {'quantization_config': bnb_config}
+    else:
+        kwargs = {}
     model = AutoModelForCausalLM.from_pretrained(
-    pretrained_model_name_or_path="Qwen/Qwen3-32B",
+    pretrained_model_name_or_path="Qwen/Qwen3-8B",
     cache_dir=CONFIG['HF_CACHE_DIR'],
     torch_dtype=torch.bfloat16,
-    device_map='cuda') # won't work without HF accelerate
+    device_map='cuda',
+    **kwargs) # won't work without HF accelerate
+
+    if bnb:
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True) 
     train_peft_on_dataset(train_dataset, model)
 
 main.add_command(distill_flant5)
