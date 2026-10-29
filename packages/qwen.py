@@ -1,3 +1,4 @@
+import ipdb
 import loguru
 import torch
 from trl import SFTTrainer, SFTConfig
@@ -84,3 +85,45 @@ def train_peft_on_dataset(train_dataset, model, eval_dataset=None):
 
     trainer.train()
     logger.info("Completed training")
+
+def eval_model(model_path: str, 
+               eval_dataset):
+    model = AutoModelForCausalLM.from_pretrained(
+        pretrained_model_name_or_path=model_path,
+        cache_dir=CONFIG['HF_CACHE_DIR'],
+        torch_dtype=torch.bfloat16,
+        device_map='cuda',
+    ) # won't work without HF accelerate
+
+    def extract_predictions_from_dict(qwen_labels):
+        response_dict = {}
+        for paragraph_num, label in qwen_labels.items():
+            response_dict[int(paragraph_num.split(' '))] = label
+        return response_dict
+
+    tokenizer = AutoTokenizer.from_pretrained(model.config._name_or_path, cache_dir=CONFIG["HF_CACHE_DIR"])
+
+    all_predictions = []
+    all_labels = []
+
+    for row in eval_dataset:
+        ground_truth_labels = extract_predictions_from_dict(row['completion'])
+        messages = row['prompt']
+        tokenized_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
+            enable_thinking=False)
+        NO_THINKING_KWARGS = dict(
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.8,
+            top_k=20,
+            min_p=0.0,
+            max_new_tokens=4096,
+        )
+        tokenized_text_map = tokenizer(tokenized_prompt, return_tensors='pt').to('cuda')
+        out = model.generate(**tokenized_text_map, **NO_THINKING_KWARGS)
+        new_tokens = out[0][tokenized_text_map["input_ids"].shape[1]:]
+        text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+        predictions = extract_predictions_from_dict(text)
+        ipdb.set_trace()
+    # def generate_predictions_for_article(batch):
+    #     ground_truth_labels = 
