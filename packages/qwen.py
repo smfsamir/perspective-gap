@@ -128,7 +128,6 @@ def eval_model(model_path: str,
         new_tokens = out[0][tokenized_text_map["input_ids"].shape[1]:]
         text = tokenizer.decode(new_tokens, skip_special_tokens=True)
         predictions = extract_predictions(text, num_paragraphs)
-        ground_truth_labels = extract_predictions(row['completion'], num_paragraphs)
-        ipdb.set_trace()
+        ground_truth_labels = extract_predictions(row['completion'][0]['content'], num_paragraphs)
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
