@@ -50,7 +50,7 @@ def train_peft_on_dataset(train_dataset, model, eval_dataset=None):
     logger.info(f"{len(lengths)} articles; longest {max(lengths)} tokens")
 
     args = SFTConfig(
-        output_dir=os.path.join(os.environ["HF_SCRATCH_DIR"], "perspective_ft"),
+        output_dir=os.path.join(os.environ["HF_CACHE_DIR"], "perspective_ft"),
         max_length=8192,
         num_train_epochs=4,
         per_device_train_batch_size=1,
