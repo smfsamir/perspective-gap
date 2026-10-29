@@ -570,50 +570,41 @@ def create_hf_dataset_from_articles(articles: List[str],
     })
     return dataset
 
-# TODO: fill in.
-@click.command()
 def create_qwen_hf_datasets():
-    # produce training dataset
-    train_prompts = []
-    train_completions = [] # dictionaries with
-
-    test_prompts = []
-    test_completions = []
-    with open(f"data/annotations/A_annotations_anonymized_complete.json") as f:
+    # produce training and test datasets in TRL's conversational prompt/completion format
+    train_rows = []
+    test_rows = []
+    with open("data/annotations/A_annotations_anonymized_complete.json") as f:
         annotations = json.load(f)
-    for fname in os.listdir("annotated_articles"):
+    for fname in sorted(os.listdir("annotated_articles")):
         index = int(fname.split("_")[0])
         with open(f"annotated_articles/{fname}") as f:
             article_lines = json.load(f)
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
-        completion = annotations[fname]
 
-        {"prompt": [{"role": "user", "content": prompt}],
-        "completion": [{"role": "assistant", "content": completion}],
-        "chat_template_kwargs": {"enable_thinking": False}}
-
+        # {"paragraph 3": "state-aligned", ...} -> the JSON list the instructions ask for
+        gold_items = sorted(
+            ({"line": int(key.split(" ")[1]), "label": label}
+             for key, label in annotations[fname].items() if label != "no entity"),
+            key=lambda item: item["line"],
+        )
+        row = {
+            "prompt": [{"role": "user", "content": prompt}],
+            "completion": [{"role": "assistant", "content": json.dumps(gold_items)}],
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
         if index in TUNING_INDICES:
-            train_prompts.append(prompt)
-            train_completions.append(completion)
+            train_rows.append(row)
         else:
-            test_prompts.append(prompt)
-            test_completions.append(completion)
-    train_dataset = Dataset.from_dict({
-        "prompt": train_prompts,
-        "completion": train_completions
-    })
+            test_rows.append({**row, "fname": fname})   # keep the filename for scoring later
 
-    test_dataset = Dataset.from_dict({
-        "prompt": test_prompts,
-        "completion": test_completions
-    })
+    train_dataset = Dataset.from_list(train_rows)
+    test_dataset = Dataset.from_list(test_rows)
     train_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_train_dataset")
     test_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_test_dataset")
-    logger.info(f"Saved to {CONFIG['HF_CACHE_DIR']}")
+    logger.info(f"Saved {len(train_dataset)} train / {len(test_dataset)} test articles to {CONFIG['HF_CACHE_DIR']}")
 
-
-    
 @click.command()
 def create_coref_training_dataset():
 
