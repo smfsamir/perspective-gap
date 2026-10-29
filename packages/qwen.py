@@ -3,6 +3,7 @@ import torch
 from trl import SFTTrainer, SFTConfig
 from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import os
 from dotenv import dotenv_values
 
 CONFIG = dotenv_values(".env")
@@ -39,14 +40,36 @@ def load_model_generator(model_name: str,
     return process_text_prompt
 
 def train_peft_on_dataset(train_dataset, model):
+
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model, 
+                                              cache_dir=CONFIG['HF_CACHE_DIR'])
+    lengths = []
+    for r in train_dataset:
+        ids = tokenizer.apply_chat_template(r["prompt"] + r["completion"], tokenize=True, enable_thinking=False)
+        lengths.append(len(ids["input_ids"] if isinstance(ids, dict) else ids))
+    logger.info(f"{len(lengths)} articles; longest {max(lengths)} tokens")
+    args = SFTConfig(
+        output_dir=os.path.join(os.environ["HF_SCRATCH_DIR"], "perspective_ft"),
+        max_length=8192,                    # set above your longest article from the check above; TRL's default is 1024
+        num_train_epochs=4,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=2,      # ~20 optimizer steps per epoch instead of 3
+        learning_rate=1e-4,                 # typical for LoRA
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.1,
+        logging_steps=1,                    # log training loss every step
+        eval_strategy="epoch",              # evaluation loss on the held-out articles each epoch
+        save_strategy="epoch",
+        per_device_eval_batch_size=1,
+        gradient_checkpointing=True,
+        bf16=True,
+        completion_only_loss=True,
+        report_to="none",                   # or "wandb" for plots
+    )
     trainer = SFTTrainer(
         model=model,
         train_dataset=train_dataset,            # rows like {"prompt": [...messages...], "completion": [{"role": "assistant", "content": answer_json}]}
-        args=SFTConfig(output_dir=CONFIG['HF_CACHE_DIR'], 
-                       num_train_epochs=4, per_device_train_batch_size=1,
-                    gradient_accumulation_steps=8, 
-                    gradient_checkpointing=True, bf16=True,
-                    completion_only_loss=True),
+        args=args,
         peft_config=LoraConfig(r=16, lora_alpha=32, target_modules="all-linear", task_type="CAUSAL_LM"),
     )
     trainer.train()
