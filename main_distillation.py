@@ -954,7 +954,7 @@ main.add_command(view_stratified_discourse_passages)
 main.add_command(prompt_tune_qwen)
 main.add_command(create_qwen_hf_datasets)
 main.add_command(peft_qwen)
-main.add_command(eval_qwen_peft)
+main.add_command(eval_peft_qwen)
 # main.add_command(obtain_train_eval_test_split)
 # main.add_command(create_distillation_examples_task1)
 
