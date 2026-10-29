@@ -109,7 +109,6 @@ def eval_model(model_path: str,
     all_labels = []
 
     for row in eval_dataset:
-        ground_truth_labels = extract_predictions_from_dict(row['completion'])
         messages = row['prompt']
         tokenized_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
             enable_thinking=False)
@@ -126,6 +125,7 @@ def eval_model(model_path: str,
         new_tokens = out[0][tokenized_text_map["input_ids"].shape[1]:]
         text = tokenizer.decode(new_tokens, skip_special_tokens=True)
         predictions = extract_predictions_from_dict(text)
+        ground_truth_labels = extract_predictions_from_dict(row['completion'])
         ipdb.set_trace()
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
