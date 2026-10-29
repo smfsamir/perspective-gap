@@ -572,13 +572,15 @@ def create_hf_dataset_from_articles(articles: List[str],
 
 @click.command()
 def create_qwen_hf_datasets():
-    # produce training and test datasets in TRL's conversational prompt/completion format
-    train_rows = []
+    # produce train / validation / test datasets in TRL's conversational prompt/completion format
+    N_VAL = 10
+    tuning_rows_by_person = defaultdict(list)   # person -> rows, so a person's articles stay together
     test_rows = []
     with open("data/annotations/A_annotations_anonymized_complete.json") as f:
         annotations = json.load(f)
     for fname in sorted(os.listdir("annotated_articles")):
         index = int(fname.split("_")[0])
+        person = fname.split("_")[1]
         with open(f"annotated_articles/{fname}") as f:
             article_lines = json.load(f)
         numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
@@ -594,17 +596,35 @@ def create_qwen_hf_datasets():
             "prompt": [{"role": "user", "content": prompt}],
             "completion": [{"role": "assistant", "content": json.dumps(gold_items)}],
             "chat_template_kwargs": {"enable_thinking": False},
+            "fname": fname,                      # keep the filename for scoring later
         }
         if index in TUNING_INDICES:
-            train_rows.append(row)
+            tuning_rows_by_person[person].append(row)
         else:
-            test_rows.append({**row, "fname": fname})   # keep the filename for scoring later
+            test_rows.append(row)
+
+    # Pick whole people (in a fixed random order) until there are exactly N_VAL validation articles
+    persons = sorted(tuning_rows_by_person)
+    random.Random(42).shuffle(persons)
+    val_persons, n_val = set(), 0
+    for person in persons:
+        if n_val + len(tuning_rows_by_person[person]) <= N_VAL:
+            val_persons.add(person)
+            n_val += len(tuning_rows_by_person[person])
+        if n_val == N_VAL:
+            break
+    train_rows = [r for p, rows in tuning_rows_by_person.items() if p not in val_persons for r in rows]
+    val_rows = [r for p, rows in tuning_rows_by_person.items() if p in val_persons for r in rows]
+    assert not {r["fname"].split("_")[1] for r in train_rows} & val_persons, "a validation person is also in train"
 
     train_dataset = Dataset.from_list(train_rows)
+    val_dataset = Dataset.from_list(val_rows)
     test_dataset = Dataset.from_list(test_rows)
     train_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_train_dataset")
+    val_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
     test_dataset.save_to_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_test_dataset")
-    logger.info(f"Saved {len(train_dataset)} train / {len(test_dataset)} test articles to {CONFIG['HF_CACHE_DIR']}")
+    logger.info(f"Saved {len(train_dataset)} train / {len(val_dataset)} val / {len(test_dataset)} test articles "
+                f"to {CONFIG['HF_CACHE_DIR']}; validation people: {sorted(val_persons)}")
 
 @click.command()
 def create_coref_training_dataset():
