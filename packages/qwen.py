@@ -110,7 +110,7 @@ def eval_model(model_path: str,
 
     for row in eval_dataset:
         messages = row['prompt']
-        filename = row['filename']
+        filename = row['fname']
         with open(f"annotated_articles/{filename}") as f:
             num_paragraphs = len(json.load(f))
         tokenized_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
