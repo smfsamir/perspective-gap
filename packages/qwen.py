@@ -97,6 +97,8 @@ def eval_model(model_path: str,
 
     def extract_predictions_from_dict(qwen_labels):
         response_dict = {}
+        logger.info(f"Label structure: {qwen_labels}")
+        ipdb.set_trace()
         for paragraph_num, label in qwen_labels.items():
             response_dict[int(paragraph_num.split(' '))] = label
         return response_dict
