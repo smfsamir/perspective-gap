@@ -1,3 +1,5 @@
+import json
+from typing import List
 import ipdb
 import loguru
 import torch
@@ -95,13 +97,11 @@ def eval_model(model_path: str,
         device_map='cuda',
     ) # won't work without HF accelerate
 
-    def extract_predictions_from_dict(qwen_labels):
-        response_dict = {}
-        logger.info(f"Label structure: {qwen_labels}")
-        ipdb.set_trace()
-        for paragraph_num, label in qwen_labels.items():
-            response_dict[int(paragraph_num.split(' '))] = label
-        return response_dict
+    def extract_predictions(response: str, num_paragraphs: int) -> List[str]:
+        labels = ["no entity"] * num_paragraphs
+        for item in json.loads(response):
+            labels[item["line"] - 1] = item["label"]
+        return labels
 
     tokenizer = AutoTokenizer.from_pretrained(model.config._name_or_path, cache_dir=CONFIG["HF_CACHE_DIR"])
 
@@ -110,6 +110,9 @@ def eval_model(model_path: str,
 
     for row in eval_dataset:
         messages = row['prompt']
+        filename = row['filename']
+        with open(f"annotated_articles/{filename}") as f:
+            num_paragraphs = len(json.load(f))
         tokenized_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
             enable_thinking=False)
         NO_THINKING_KWARGS = dict(
@@ -124,8 +127,8 @@ def eval_model(model_path: str,
         out = model.generate(**tokenized_text_map, **NO_THINKING_KWARGS)
         new_tokens = out[0][tokenized_text_map["input_ids"].shape[1]:]
         text = tokenizer.decode(new_tokens, skip_special_tokens=True)
-        predictions = extract_predictions_from_dict(text)
-        ground_truth_labels = extract_predictions_from_dict(row['completion'])
+        predictions = extract_predictions(text, num_paragraphs)
+        ground_truth_labels = extract_predictions(row['completion'], num_paragraphs)
         ipdb.set_trace()
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
