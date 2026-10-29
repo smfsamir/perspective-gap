@@ -570,6 +570,7 @@ def create_hf_dataset_from_articles(articles: List[str],
     })
     return dataset
 
+@click.command()
 def create_qwen_hf_datasets():
     # produce training and test datasets in TRL's conversational prompt/completion format
     train_rows = []
