@@ -10,7 +10,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 from dotenv import dotenv_values
 
-from constants import LABELS
+from .constants import LABELS
 CONFIG = dotenv_values(".env")
 logger = loguru.logger
 
