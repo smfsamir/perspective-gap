@@ -129,5 +129,7 @@ def eval_model(model_path: str,
         text = tokenizer.decode(new_tokens, skip_special_tokens=True)
         predictions = extract_predictions(text, num_paragraphs)
         ground_truth_labels = extract_predictions(row['completion'][0]['content'], num_paragraphs)
+        all_predictions.extend(predictions)
+        all_labels.extend(ground_truth_labels)
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
