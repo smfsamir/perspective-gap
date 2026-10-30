@@ -4,11 +4,13 @@ import ipdb
 import loguru
 import torch
 from trl import SFTTrainer, SFTConfig
+from sklearn.metrics import classification_report
 from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 from dotenv import dotenv_values
 
+from constants import LABELS
 CONFIG = dotenv_values(".env")
 logger = loguru.logger
 
@@ -131,5 +133,6 @@ def eval_model(model_path: str,
         ground_truth_labels = extract_predictions(row['completion'][0]['content'], num_paragraphs)
         all_predictions.extend(predictions)
         all_labels.extend(ground_truth_labels)
+    print(classification_report(all_labels, all_predictions, labels=LABELS))
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
