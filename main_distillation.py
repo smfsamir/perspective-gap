@@ -931,7 +931,7 @@ def peft_qwen(bnb):
 
 @click.command()
 def eval_peft_qwen():
-    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "checkpoint-100")
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/QwenQwen3-0.6B", "checkpoint-80")
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
     eval_model(model_save_path, eval_dataset)
 
