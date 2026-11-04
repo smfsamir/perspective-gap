@@ -919,7 +919,7 @@ def peft_qwen(bnb):
     else:
         kwargs = {}
     model = AutoModelForCausalLM.from_pretrained(
-    pretrained_model_name_or_path="Qwen/Qwen3-8B",
+    pretrained_model_name_or_path="Qwen/Qwen3-0.6B",
     cache_dir=CONFIG['HF_CACHE_DIR'],
     torch_dtype=torch.bfloat16,
     device_map='cuda',
@@ -934,9 +934,6 @@ def eval_peft_qwen():
     model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "checkpoint-100")
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
     eval_model(model_save_path, eval_dataset)
-
-
-
 
 
 main.add_command(distill_flant5)
