@@ -897,7 +897,7 @@ def prompt_tune_qwen():
             total += 1
             continue
 
-        predictions_dict = extract_predictions(response)
+        predictions_dict = extract_predictions(response, num_paragraphs)
         predictions = convert_to_ternary_label_list_inference(predictions_dict, 
                                                               num_paragraphs)
         responses.append(response)
