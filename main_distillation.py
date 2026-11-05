@@ -938,7 +938,7 @@ def eval_peft_qwen():
     for dirname in os.listdir(model_save_path):
         if dirname.startswith('checkpoint-'):
             model_path = f"{model_save_path}/{dirname}"
-            weighted_avg_f1 = eval_model(model_save_path, eval_dataset)
+            weighted_avg_f1 = eval_model(model_path, eval_dataset)
             if weighted_avg_f1 > best_score:
                 best_score = weighted_avg_f1
                 best_checkpoint = model_path
