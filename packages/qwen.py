@@ -133,6 +133,10 @@ def eval_model(model_path: str,
         ground_truth_labels = extract_predictions(row['completion'][0]['content'], num_paragraphs)
         all_predictions.extend(predictions)
         all_labels.extend(ground_truth_labels)
-    print(classification_report(all_labels, all_predictions, labels=LABELS))
+    report = classification_report(all_labels, all_predictions, labels=LABELS)
+    report_dict = classification_report(all_labels, all_predictions, labels=LABELS, output_dict=True)
+    print(report)
+    return report_dict['weighted avg']['f1 score']
+
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
