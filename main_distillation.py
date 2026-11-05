@@ -852,10 +852,10 @@ def prompt_tune_qwen():
     generator = load_model_generator(f"{model_save_path}/{dirname}", 'cuda')
     responses = []
 
-    def parse_qwen_response(qwen_response: str):
-        start_index = qwen_response.find("{")
-        end_index = qwen_response.rfind("}")
-        return qwen_response[start_index: end_index + 1]
+    # def parse_qwen_response(qwen_response: str):
+    #     start_index = qwen_response.find("{")
+    #     end_index = qwen_response.rfind("}")
+    #     return qwen_response[start_index: end_index + 1]
 
     with open('data/annotations/A_annotations_anonymized_complete.json') as f:
         complete_annotations = json.load(f)
@@ -883,7 +883,7 @@ def prompt_tune_qwen():
         prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
         num_paragraphs = len(article_lines)
         response = generator(prompt)
-        response = parse_qwen_response(response)
+        # response = parse_qwen_response(response)
         try:
             response = json.loads(response)
         except JSONDecodeError:
