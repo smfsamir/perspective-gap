@@ -845,7 +845,11 @@ def view_stratified_discourse_passages(input_file_prefix: str):
 
 @click.command()
 def prompt_tune_qwen():
-    generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
+    # generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
+    # generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
+    dirname = "checkpoint-160"
+    generator = load_model_generator(f"{model_save_path}/{dirname}", 'cuda')
     responses = []
 
     def parse_qwen_response(qwen_response: str):
@@ -933,8 +937,6 @@ def peft_qwen(bnb):
 def eval_peft_qwen():
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
     model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
-    best_score = -float("inf")
-    best_checkpoint = ""
     dirname = "checkpoint-160"
     model_path = f"{model_save_path}/{dirname}"
     weighted_avg_f1 = eval_model(model_path, eval_dataset)
