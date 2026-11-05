@@ -860,11 +860,16 @@ def prompt_tune_qwen():
     with open('data/annotations/A_annotations_anonymized_complete.json') as f:
         complete_annotations = json.load(f)
     
-    def extract_predictions_from_dict(qwen_labels):
-        response_dict = {}
-        for paragraph_num, labels in qwen_labels.items():
-            response_dict[int(paragraph_num)] = labels['label']
-        return response_dict
+    def extract_predictions(response: str, num_paragraphs: int) -> List[str]:
+        labels = ["no entity"] * num_paragraphs
+        for item in json.loads(response):
+            labels[item["line"] - 1] = item["label"]
+        return labels
+    # def extract_predictions_from_dict(qwen_labels):
+    #     response_dict = {}
+    #     for paragraph_num, labels in qwen_labels.items():
+    #         response_dict[int(paragraph_num)] = labels['label']
+    #     return response_dict
 
     start = perf_counter()
     all_responses = []
@@ -892,7 +897,7 @@ def prompt_tune_qwen():
             total += 1
             continue
 
-        predictions_dict = extract_predictions_from_dict(response)
+        predictions_dict = extract_predictions(response)
         predictions = convert_to_ternary_label_list_inference(predictions_dict, 
                                                               num_paragraphs)
         responses.append(response)
