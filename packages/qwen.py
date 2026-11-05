@@ -136,7 +136,7 @@ def eval_model(model_path: str,
     report = classification_report(all_labels, all_predictions, labels=LABELS)
     report_dict = classification_report(all_labels, all_predictions, labels=LABELS, output_dict=True)
     print(report)
-    return report_dict['weighted avg']['f1 score']
+    return report_dict['weighted avg']['f1-score']
 
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
