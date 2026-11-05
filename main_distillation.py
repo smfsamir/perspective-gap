@@ -878,7 +878,7 @@ def prompt_tune_qwen():
     total = 0
     for fname in tqdm(os.listdir('annotated_articles')):
         index = int(fname.split('_')[0])
-        if index not in TUNING_INDICES:
+        if index in TUNING_INDICES:
             continue
         sample_file = f"annotated_articles/{fname}"
 
