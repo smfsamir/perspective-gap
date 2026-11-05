@@ -919,10 +919,10 @@ def peft_qwen(bnb):
     else:
         kwargs = {}
     model = AutoModelForCausalLM.from_pretrained(
-    pretrained_model_name_or_path="Qwen/Qwen3-0.6B",
-    cache_dir=CONFIG['HF_CACHE_DIR'],
-    torch_dtype=torch.bfloat16,
-    device_map='cuda',
+        pretrained_model_name_or_path="Qwen/Qwen3-32B",
+        cache_dir=CONFIG['HF_CACHE_DIR'],
+        torch_dtype=torch.bfloat16,
+        device_map='cuda',
     **kwargs) # won't work without HF accelerate
 
     if bnb:
@@ -931,7 +931,7 @@ def peft_qwen(bnb):
 
 @click.command()
 def eval_peft_qwen():
-    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-0.6B", "checkpoint-200")
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-32B", "checkpoint-200")
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
     eval_model(model_save_path, eval_dataset)
 
