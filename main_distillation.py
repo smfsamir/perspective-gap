@@ -931,10 +931,10 @@ def peft_qwen(bnb):
 
 @click.command()
 def eval_peft_qwen():
-    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-32B", "checkpoint-200")
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B", "checkpoint-200")
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
-    eval_model(model_save_path, eval_dataset)
-
+    weighted_avg_f1 = eval_model(model_save_path, eval_dataset)
+    logger.info(weighted_avg_f1)
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
