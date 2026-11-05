@@ -871,7 +871,7 @@ def prompt_tune_qwen():
     all_ground_truths = []
     num_failures = 0
     total = 0
-    for fname in os.listdir('annotated_articles'):
+    for fname in tqdm(os.listdir('annotated_articles')):
         index = int(fname.split('_')[0])
         if index not in TUNING_INDICES:
             continue
