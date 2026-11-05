@@ -890,18 +890,13 @@ def prompt_tune_qwen():
         response = generator(prompt)
         # response = parse_qwen_response(response)
         try:
-            response = json.loads(response)
+            predictions = extract_predictions(response, num_paragraphs)
         except JSONDecodeError:
             logger.error(f"Failed to decode this response:\n{response}")
             num_failures += 1
             total += 1
             continue
-
-        predictions_dict = extract_predictions(response, num_paragraphs)
-        predictions = convert_to_ternary_label_list_inference(predictions_dict, 
-                                                              num_paragraphs)
         responses.append(response)
-
         ground_truths = convert_to_ternary_label_list_annotations(complete_annotations[fname], num_paragraphs)
 
         all_responses.extend(predictions)
