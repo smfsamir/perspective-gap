@@ -847,8 +847,8 @@ def view_stratified_discourse_passages(input_file_prefix: str):
 def prompt_tune_qwen():
     # generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
     # generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
-    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
-    dirname = "checkpoint-160"
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-8B")
+    dirname = "checkpoint-200"
     generator = load_model_generator(f"{model_save_path}/{dirname}", 'cuda')
     responses = []
 
