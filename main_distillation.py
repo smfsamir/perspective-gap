@@ -916,7 +916,7 @@ def peft_qwen(bnb):
     else:
         kwargs = {}
     model = AutoModelForCausalLM.from_pretrained(
-        pretrained_model_name_or_path="Qwen/Qwen3-14B",
+        pretrained_model_name_or_path="Qwen/Qwen3-4B",
         cache_dir=CONFIG['HF_CACHE_DIR'],
         torch_dtype=torch.bfloat16,
         device_map='cuda',
@@ -984,7 +984,7 @@ def run_inference_timc_v1():
     TIMC_V1_PATH = CONFIG['TIMC_V1_PATH']
     predictions_save_dir = 'timc_v1_qwen_predictions'
     os.makedirs(predictions_save_dir, exist_ok=True)
-    batch_size = 16
+    batch_size = 8
 
     # (filename, paragraphs, prompt), skipping articles that already have predictions
     items = []
@@ -1027,10 +1027,6 @@ def run_inference_timc_v1():
 @click.command()
 def run_inference_timc_v2():
     pass
-
-
-
-
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
