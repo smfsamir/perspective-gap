@@ -916,7 +916,7 @@ def peft_qwen(bnb):
     else:
         kwargs = {}
     model = AutoModelForCausalLM.from_pretrained(
-        pretrained_model_name_or_path="Qwen/Qwen3-4B",
+        pretrained_model_name_or_path="Qwen/Qwen3-8B",
         cache_dir=CONFIG['HF_CACHE_DIR'],
         torch_dtype=torch.bfloat16,
         device_map='cuda',
