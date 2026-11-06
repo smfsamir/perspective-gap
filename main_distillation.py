@@ -943,6 +943,93 @@ def eval_peft_qwen():
     #             best_checkpoint = model_path
     # logger.info(f"Best model was {best_checkpoint} at weighted f1 of {weighted_avg_f1:.3f}")
 
+def run_inference_timc_v1():
+    TIMC_V1_PATH = CONFIG['TIMC_V1_PATH']
+    all_articles = []
+    all_article_filenames = []
+    for article_fname in os.listdir(TIMC_V1_PATH):
+        with open(f"{TIMC_V1_PATH}/{article_fname}") as f:
+            article_json = json.load(f)
+            article_text = article_json['article']
+            all_article_filenames.append(article_fname)
+            all_articles.append(article_text)
+    all_articles = list(sorted(all_articles, lambda x: len(x), reverse=True))
+    predictions_save_dir = 'timc_v1_qwen_predictions'
+    os.mkdir(predictions_save_dir, exist_ok=True)
+    batch_size = 16
+
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
+    dirname = "checkpoint-160"
+    model_path = f"{model_save_path}/{dirname}"
+    batch_generator = load_model_generator(model_path, 'cuda', True)
+
+    def extract_predictions(response: str, num_paragraphs: int) -> List[str]:
+        labels = ["no entity"] * num_paragraphs
+        for item in json.loads(response):
+            labels[item["line"] - 1] = item["label"]
+        return labels
+
+    for batch_i in range(0, len(all_articles), batch_size):
+        texts = all_articles[batch_i: batch_i + batch_size]
+        responses = batch_generator(texts)
+        predictions = [extract_predictions(responses[i], len(texts[i])) for i in\
+                       range(len(texts))]
+        for i in range(len(texts)):
+            with open(os.path.join(predictions_save_dir, 
+                                   all_article_filenames[batch_i + i]), 'w') as f:
+                json.dump(predictions[i], f)
+
+def run_inference_timc_v1():
+    TIMC_V1_PATH = CONFIG['TIMC_V1_PATH']
+    predictions_save_dir = 'timc_v1_qwen_predictions'
+    os.makedirs(predictions_save_dir, exist_ok=True)
+    batch_size = 16
+
+    # (filename, paragraphs, prompt), skipping articles that already have predictions
+    items = []
+    for article_fname in sorted(os.listdir(TIMC_V1_PATH)):
+        if os.path.exists(os.path.join(predictions_save_dir, article_fname)):
+            continue
+        with open(os.path.join(TIMC_V1_PATH, article_fname)) as f:
+            paragraphs = json.load(f)['article']                 # list of paragraphs
+        numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(paragraphs, start=1))
+        prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"   # same as training
+        items.append((article_fname, paragraphs, prompt))
+    items.sort(key=lambda item: len(item[2]), reverse=True)      # longest prompts first; pairs stay together
+    logger.info(f"{len(items)} articles to process")
+
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
+    model_path = os.path.join(model_save_path, "checkpoint-160")
+    batch_generator = load_model_generator(model_path, 'cuda', True)
+
+    def extract_predictions(response: str, num_paragraphs: int) -> List[str]:
+        labels = ["no entity"] * num_paragraphs
+        for item in json.loads(response):
+            labels[item["line"] - 1] = item["label"]
+        return labels
+    
+    n_failed = 0
+    for batch_start in tqdm(range(0, len(items), batch_size)):
+        batch = items[batch_start: batch_start + batch_size]
+        responses = batch_generator([prompt for _, _, prompt in batch])
+        for (fname, paragraphs, _), response in zip(batch, responses):
+            try:
+                labels = extract_predictions(response, len(paragraphs))
+            except (json.JSONDecodeError, IndexError, KeyError, TypeError) as e:
+                logger.warning(f"{fname}: could not parse response ({e}); not saved")
+                n_failed += 1
+                continue
+            with open(os.path.join(predictions_save_dir, fname), 'w') as f:
+                json.dump(labels, f)
+        logger.info(f"{batch_start + len(batch)}/{len(items)} done; {n_failed} parse failures")
+
+def run_inference_timc_v2():
+    pass
+
+
+
+
+
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
 main.add_command(compute_required_memory)
@@ -959,8 +1046,8 @@ main.add_command(prompt_tune_qwen)
 main.add_command(create_qwen_hf_datasets)
 main.add_command(peft_qwen)
 main.add_command(eval_peft_qwen)
-# main.add_command(obtain_train_eval_test_split)
-# main.add_command(create_distillation_examples_task1)
+main.add_command(run_inference_timc_v1)
+main.add_command(run_inference_timc_v2)
 
 if __name__ == "__main__":
 # Example: generate 5 random configs
