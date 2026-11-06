@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import List, Callable
 import ipdb
 import loguru
 import torch
@@ -10,7 +10,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 from dotenv import dotenv_values
 
-from .constants import LABELS
+from .constants import LABELS, QWEN_INSTRUCTIONS
 CONFIG = dotenv_values(".env")
 logger = loguru.logger
 
@@ -24,7 +24,7 @@ def load_model_generator(model_name: str,
         torch_dtype=torch.bfloat16,
         device_map=device) # won't work without HF accelerate
     NO_THINKING_KWARGS = dict(
-        do_sample=True,
+        do_sample=False,
         temperature=0.7,
         top_p=0.8,
         top_k=20,
@@ -118,7 +118,7 @@ def eval_model(model_path: str,
         tokenized_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True,
             enable_thinking=False)
         NO_THINKING_KWARGS = dict(
-            do_sample=True,
+            do_sample=False,
             temperature=0.7,
             top_p=0.8,
             top_k=20,
@@ -140,3 +140,15 @@ def eval_model(model_path: str,
 
     # def generate_predictions_for_article(batch):
     #     ground_truth_labels = 
+
+def obtain_perspective_labels_qwen(generator: Callable[[str], str] , article_lines: List[str]) -> List[str]:
+    def extract_predictions(response: str, num_paragraphs: int) -> List[str]:
+        labels = ["no entity"] * num_paragraphs
+        for item in json.loads(response):
+            labels[item["line"] - 1] = item["label"]
+        return labels
+
+    numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
+    prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
+    response = generator(prompt)
+    return extract_predictions(response, len(article_lines))

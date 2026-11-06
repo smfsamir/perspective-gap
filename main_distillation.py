@@ -40,7 +40,7 @@ from packages.flan_utils import compute_metrics_tokenized_batch, generate_single
     is_valid_entity_present, is_police_aligned_entity, extract_relevant_paragraphs,\
     convert_to_ternary_label_list, reduce_affinities_to_individual_prediction,\
     convert_to_ternary_label_list_inference, convert_to_ternary_label_list_annotations
-from packages.qwen import load_model_generator, train_peft_on_dataset, eval_model
+from packages.qwen import load_model_generator, train_peft_on_dataset, eval_model, obtain_perspective_labels_qwen
 
 CONFIG = dotenv_values(".env")
 logger = loguru.logger
@@ -884,26 +884,19 @@ def prompt_tune_qwen():
 
         with open(sample_file) as f:
             article_lines = json.load(f)
-        numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(article_lines, start=1))
-        prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"
-        num_paragraphs = len(article_lines)
-        response = generator(prompt)
-        # response = parse_qwen_response(response)
-        try:
-            predictions = extract_predictions(response, num_paragraphs)
-        except JSONDecodeError:
-            logger.error(f"Failed to decode this response:\n{response}")
-            num_failures += 1
-            total += 1
-            continue
-        responses.append(response)
-        ground_truths = convert_to_ternary_label_list_annotations(complete_annotations[fname], num_paragraphs)
+        predictions = obtain_perspective_labels_qwen(generator, article_lines)
+        ground_truths = convert_to_ternary_label_list_annotations(complete_annotations[fname], len(article_lines))
 
         all_responses.extend(predictions)
         all_ground_truths.extend(ground_truths)
         print(f"Predictions: {predictions}")
         print(f"Ground-truths: {ground_truths}")
         total += 1
+
+        prediction_save_path = 'data/annotated_inference_predictions_qwen'
+        os.makedirs(prediction_save_path, exist_ok=True)
+        with open(f"{prediction_save_path}/{fname}", 'w') as f:
+            json.dump(predictions, f)
     print(classification_report(all_ground_truths, all_responses, labels=LABELS))
     logger.info(f"The loop took {perf_counter() - start} seconds.")
     logger.warning(f"{num_failures}/{total} cases failed")
