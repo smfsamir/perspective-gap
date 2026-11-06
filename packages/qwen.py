@@ -15,7 +15,8 @@ CONFIG = dotenv_values(".env")
 logger = loguru.logger
 
 def load_model_generator(model_name: str, 
-               device: str):
+               device: str, 
+               batch_processing: bool = False):
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name, 
                                               cache_dir=CONFIG['HF_CACHE_DIR'])
     model = AutoModelForCausalLM.from_pretrained(
@@ -42,7 +43,25 @@ def load_model_generator(model_name: str,
         new_tokens = out[0][tokenized_text_map["input_ids"].shape[1]:]
         text = tokenizer.decode(new_tokens, skip_special_tokens=True)
         return text
-    return process_text_prompt
+    
+    def process_text_batch_prompt(input_texts: List[str]) -> List[str]:
+        prompts = [
+            tokenizer.apply_chat_template([{"role": "user", "content": t}], tokenize=False,
+                                        add_generation_prompt=True, enable_thinking=False)
+            for t in input_texts
+        ]
+        tokenizer.padding_side = "left"           # pad on the left so every prompt ends where generation starts
+        batch = tokenizer(prompts, return_tensors="pt", padding=True,
+                        add_special_tokens=False).to(device)
+        out = model.generate(**batch, **NO_THINKING_KWARGS,
+                            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id)
+        new_tokens = out[:, batch["input_ids"].shape[1]:]          # same cut-off for every row, thanks to left padding
+        return tokenizer.batch_decode(new_tokens, skip_special_tokens=True)
+    
+    if batch_processing:
+        return process_text_batch_prompt
+    else:
+        return process_text_prompt
 
 def train_peft_on_dataset(train_dataset, model, eval_dataset=None):
     tokenizer = AutoTokenizer.from_pretrained(model.config._name_or_path, cache_dir=CONFIG["HF_CACHE_DIR"])
