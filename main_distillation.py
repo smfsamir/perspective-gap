@@ -979,6 +979,7 @@ def run_inference_timc_v1():
                                    all_article_filenames[batch_i + i]), 'w') as f:
                 json.dump(predictions[i], f)
 
+@click.command()
 def run_inference_timc_v1():
     TIMC_V1_PATH = CONFIG['TIMC_V1_PATH']
     predictions_save_dir = 'timc_v1_qwen_predictions'
@@ -1023,6 +1024,7 @@ def run_inference_timc_v1():
                 json.dump(labels, f)
         logger.info(f"{batch_start + len(batch)}/{len(items)} done; {n_failed} parse failures")
 
+@click.command()
 def run_inference_timc_v2():
     pass
 
