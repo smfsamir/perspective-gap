@@ -929,13 +929,13 @@ def peft_qwen(bnb):
 @click.command()
 def eval_peft_qwen():
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
-    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-4B")
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-8B")
     # dirname = "checkpoint-160"
     # model_path = f"{model_save_path}/{dirname}"
     # weighted_avg_f1 = eval_model(model_path, eval_dataset)
     # logger.info(f"macro Avg F1: {weighted_avg_f1}")
     best_score = -float("inf")
-    best_checkpopint = None
+    best_checkpoint = None
     for dirname in os.listdir(model_save_path):
         if dirname.startswith('checkpoint-'):
             model_path = f"{model_save_path}/{dirname}"
