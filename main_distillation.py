@@ -930,18 +930,18 @@ def peft_qwen(bnb):
 def eval_peft_qwen():
     eval_dataset = load_from_disk(f"{CONFIG['HF_CACHE_DIR']}/qwen_val_dataset")
     model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
-    dirname = "checkpoint-160"
-    model_path = f"{model_save_path}/{dirname}"
-    weighted_avg_f1 = eval_model(model_path, eval_dataset)
-    logger.info(f"macro Avg F1: {weighted_avg_f1}")
-    # for dirname in os.listdir(model_save_path):
-    #     if dirname.startswith('checkpoint-'):
-    #         model_path = f"{model_save_path}/{dirname}"
-    #         weighted_avg_f1 = eval_model(model_path, eval_dataset)
-    #         if weighted_avg_f1 > best_score:
-    #             best_score = weighted_avg_f1
-    #             best_checkpoint = model_path
-    # logger.info(f"Best model was {best_checkpoint} at weighted f1 of {weighted_avg_f1:.3f}")
+    # dirname = "checkpoint-160"
+    # model_path = f"{model_save_path}/{dirname}"
+    # weighted_avg_f1 = eval_model(model_path, eval_dataset)
+    # logger.info(f"macro Avg F1: {weighted_avg_f1}")
+    for dirname in os.listdir(model_save_path):
+        if dirname.startswith('checkpoint-'):
+            model_path = f"{model_save_path}/{dirname}"
+            weighted_avg_f1 = eval_model(model_path, eval_dataset)
+            if weighted_avg_f1 > best_score:
+                best_score = weighted_avg_f1
+                best_checkpoint = model_path
+    logger.info(f"Best model was {best_checkpoint} at weighted f1 of {weighted_avg_f1:.3f}")
 
 def run_inference_timc_v1():
     TIMC_V1_PATH = CONFIG['TIMC_V1_PATH']
