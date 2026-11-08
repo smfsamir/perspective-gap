@@ -946,7 +946,7 @@ def eval_peft_qwen():
 
 def make_batches(items, lengths):
     """items and lengths sorted longest first; returns lists of items whose padded size fits the budget."""
-    TOKEN_BUDGET = 40_000
+    TOKEN_BUDGET = 20_000
 
     batches, current, longest = [], [], 0
     for item, n_tokens in zip(items, lengths):
@@ -965,9 +965,7 @@ def make_batches(items, lengths):
 def run_inference_timc_v1():
     TIMC_V1_PATH = CONFIG['TIMC_V1_PATH']
     predictions_save_dir = 'timc_v1_qwen_predictions'
-
     os.makedirs(predictions_save_dir, exist_ok=True)
-    batch_size = 8
 
     # (filename, paragraphs, prompt), skipping articles that already have predictions
     items = []
