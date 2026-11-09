@@ -1,3 +1,4 @@
+import loguru
 import pandas as pd
 import polars as pl
 from typing import Dict
@@ -172,8 +173,8 @@ def load_ti_frame(timc_v2_path) -> pl.DataFrame:
     ti_frame = pl.from_pandas(ti_frame)
     return ti_frame
 
-def load_cd_frame() -> pl.DataFrame:
-    cd_frame = pd.read_csv('CustodyDeaths.csv')
+def load_cd_frame(timc_v2_path) -> pl.DataFrame:
+    cd_frame = pd.read_csv(f'{timc_v2_path}/CustodyDeaths.csv')
     cd_frame = pl.from_pandas(cd_frame)
     return cd_frame
 
