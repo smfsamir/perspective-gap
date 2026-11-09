@@ -33,7 +33,8 @@ from packages.constants import TUNING_INDICES, OLD_TO_NEW_LABEL_MAP, LABELS, QWE
 from packages.parsing_utils import CorefEntityMetadata, get_manual_annotation_occurrences, load_all_articles,\
     load_article_paragraphs, load_repaired_articles,\
     load_training_data_annotations_for_person, extract_enumerated_paragraphs,\
-    compute_paragraph_to_affinities, normalize_whitespace, load_unsupervised_article_paragraphs
+    compute_paragraph_to_affinities, normalize_whitespace, load_unsupervised_article_paragraphs,\
+    get_all_incidents_and_articles,obtain_article_from_timc
 from packages.flan_utils import compute_metrics_tokenized_batch, generate_singleton_prediction,\
     evaluate_entity_identified_single, generate_predictions,\
     generate_predictions_tokenized_batch, convert_text_to_entity_present_label,\
@@ -1010,7 +1011,92 @@ def run_inference_timc_v1():
 
 @click.command()
 def run_inference_timc_v2():
-    pass
+    TIMC_V2_PATH = CONFIG['TIMC_V2_PATH']
+    predictions_save_dir = 'timc_extended_qwen_predictions'
+    os.makedirs(predictions_save_dir, exist_ok=True)
+
+    def prediction_path(incident_id):
+        return os.path.join(predictions_save_dir, f"{incident_id}.json")
+
+    incident_article_pairs = get_all_incidents_and_articles(TIMC_V2_PATH)
+    n_articles = defaultdict(int)                                # articles per incident, to size the output lists
+    for incident_id, article_index in incident_article_pairs:
+        n_articles[incident_id] = max(n_articles[incident_id], article_index + 1)
+
+    # Predictions so far, per incident: a list aligned with the corpus's "articles" list (None = not predicted yet)
+    results = {}
+    for incident_id, n in n_articles.items():
+        results[incident_id] = [None] * n
+        if os.path.exists(prediction_path(incident_id)):
+            with open(prediction_path(incident_id)) as f:
+                for i, a in enumerate(json.load(f)["articles"]):
+                    if a is not None:
+                        results[incident_id][i] = a["labels"]
+
+    with open(f'{TIMC_V2_PATH}/qwen_filters_suffix_32B.json') as f:
+        filter_json = json.load(f)
+
+    # (incident_id, article_index, kept_indices, n_lines, prompt), skipping articles that already have predictions
+    items = []
+    for incident_id, article_index in incident_article_pairs:
+        if results[incident_id][article_index] is not None:
+            continue
+        article_obj = obtain_article_from_timc(incident_id, article_index)
+        lines = article_obj['maintext']
+
+        # same keying and logic as filter_text(), but keeping the original indices of the kept lines
+        key = f"{incident_id}_{article_index}_{article_obj['publication']}_{len(lines)}"
+        if key in filter_json:
+            dropped = {i - 1 for i in filter_json[key]['dropped_indices']}   # 1-based -> 0-based
+            kept_indices = [i for i in range(len(lines)) if i not in dropped]
+        else:
+            logger.warning(f"{key} is not in the filter keymap; using all lines")
+            kept_indices = list(range(len(lines)))
+        kept_lines = [lines[i] for i in kept_indices]
+
+        numbered = "\n".join(f"{i}. {line}" for i, line in enumerate(kept_lines, start=1))
+        prompt = f"Consider the news article below:\n\n{numbered}\n\n{QWEN_INSTRUCTIONS}"   # same as training
+        items.append((incident_id, article_index, kept_indices, len(lines), prompt))
+    items.sort(key=lambda item: len(item[4]), reverse=True)      # longest prompts first
+    logger.info(f"{len(items)} articles to process")
+
+    model_save_path = os.path.join(CONFIG["HF_CACHE_DIR"], "perspective_ft", "Qwen/Qwen3-14B")
+    model_path = os.path.join(model_save_path, "checkpoint-160")
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    lengths = [len(tokenizer(item[4], add_special_tokens=False)["input_ids"]) for item in items]
+
+    batches = make_batches(items, lengths)
+
+    batch_generator = load_model_generator(model_path, 'cuda', True)
+
+    def extract_predictions(response: str, num_paragraphs: int) -> List[str]:
+        labels = ["no entity"] * num_paragraphs
+        for item in json.loads(response):
+            labels[item["line"] - 1] = item["label"]
+        return labels
+
+    n_failed = 0
+    for batch in tqdm(batches):
+        responses = batch_generator([item[4] for item in batch])
+        touched = set()
+        for (incident_id, article_index, kept_indices, n_lines, _), response in zip(batch, responses):
+            try:
+                kept_labels = extract_predictions(response, len(kept_indices))
+            except (json.JSONDecodeError, IndexError, KeyError, TypeError) as e:
+                logger.warning(f"{incident_id}_{article_index}: could not parse response ({e}); not saved")
+                n_failed += 1
+                continue
+            labels = ["filtered"] * n_lines                      # lines removed by the boilerplate filter
+            for original_i, label in zip(kept_indices, kept_labels):
+                labels[original_i] = label
+            results[incident_id][article_index] = labels
+            touched.add(incident_id)
+        for incident_id in touched:
+            with open(prediction_path(incident_id), 'w') as f:
+                json.dump({"id": incident_id,
+                           "articles": [None if labels is None else {"labels": labels}
+                                        for labels in results[incident_id]]}, f)
+
 
 main.add_command(distill_flant5)
 # main.add_command(create_training_dataset_rolling)
