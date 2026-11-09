@@ -1,3 +1,5 @@
+import pandas as pd
+import polars as pl
 from typing import Dict
 import ipdb
 import re
@@ -159,3 +161,85 @@ def normalize_whitespace(text: str) -> str:
     return " ".join(
         unicodedata.normalize("NFKC", text).split()
     )
+
+def load_ti_frame(timc_v2_path) -> pl.DataFrame:
+    ti_frame = pd.read_csv(f'{timc_v2_path}/tracking_injustice.csv', keep_default_na=False, na_values=[''])[['CASE', 'DATE', 'NAME_FIRST', 'NAME_LAST', 'NAME_MIDDLE', 'NICKNAME',
+       'AGE', 'GENDER', 'RACE', 'PROVINCE', 'POLICE_SERVICE',
+       'HIGHEST_LEVEL_FORCE', 'ARMED_TYPE', 'PERSON_IN_CRISIS',
+       'CITY_TOWN_REGION', 'NEIGHBOURHOOD', 'INTERSECTION', 'ADDRESS',
+       'HOSPITAL/BUILDING LOCATION (IF APPLICABLE)', 'SUMMARY', 'Source',
+       'Postal Code', 'Address Type', 'Notes']]
+    ti_frame = pl.from_pandas(ti_frame)
+    return ti_frame
+
+def load_cd_frame() -> pl.DataFrame:
+    cd_frame = pd.read_csv('CustodyDeaths.csv')
+    cd_frame = pl.from_pandas(cd_frame)
+    return cd_frame
+
+def get_all_incidents_and_articles(timc_v2_path) -> List[Tuple[int, int]]:
+    lookup_frame = pl.read_csv(f'{timc_v2_path}/lookup.csv').filter(
+        (pl.col(f'{timc_v2_path}/TRACKING_INJUSTICE_CASE_ID').is_not_null()) |
+        (pl.col(f'{timc_v2_path}/CUSTODY_DEATHS_ID').is_not_null())
+    )
+
+    # TODO: have to make sure that even when TI and CD case IDs are not null, that they are actually in the respective CSVs
+    # because some of them were deleted.
+    # the paths are "tracking_injustice.csv" and "CustodyDeaths.csv"
+    # implement this logic here:
+    valid_ti_cases = set((load_ti_frame())['CASE'].to_list())
+    valid_cd_cases = set((load_cd_frame())['Case'].to_list())
+
+    logger = loguru.logger
+    no_main_text_files = []
+    incident_articles_lst = []
+    stale_case_id_incidents = []
+    global_news_tag_articles = []
+    for row in lookup_frame.iter_rows(named=True):
+        extended_set_index = row['INCIDENT_ID']
+        tracking_case_id = row['TRACKING_INJUSTICE_CASE_ID']
+        custody_case_id = row['CUSTODY_DEATHS_ID']
+
+        if tracking_case_id is not None:
+            resolvable = tracking_case_id in valid_ti_cases
+        else:
+            resolvable = custody_case_id in valid_cd_cases
+
+        if not resolvable:
+            stale_case_id_incidents.append(extended_set_index)
+            continue
+        try:
+            with open(f"incident_articles/{extended_set_index}.json") as f:
+                try:
+                    json_obj = json.load(f)
+                except json.decoder.JSONDecodeError:
+                    logger.warning(f"Failed to load {extended_set_index}.json")
+                    continue
+                all_articles = json_obj['articles']
+                for i in range(len(all_articles)):
+                    article_obj = all_articles[i]
+                    body_lines = article_obj['maintext']          # <- adjust: see note below
+                    url = article_obj['url']
+                    if body_lines is None or len(body_lines) == 0:
+                        no_main_text_files.append(
+                            (f"{extended_set_index}.json", 
+                             article_obj['publication'])
+                        )
+                        continue
+                    elif url and "globalnews.ca/tag" in url:
+                        global_news_tag_articles.append((extended_set_index, i))
+                        continue
+                    incident_articles_lst.append((extended_set_index, i))
+        except FileNotFoundError:
+            continue
+    
+    if stale_case_id_incidents:
+        logger.warning(
+            f"{len(stale_case_id_incidents)} incident(s) skipped -- their lookup.csv case ID "
+            f"isn't found in its source CSV (likely deleted since lookup.csv was built): "
+            f"{stale_case_id_incidents}"
+        )
+    if global_news_tag_articles:
+        logger.warning(f"{len(global_news_tag_articles)} Global News tag pages were filtered out.")
+    logger.warning(f"The following files have no main text: {no_main_text_files}")
+    return incident_articles_lst
