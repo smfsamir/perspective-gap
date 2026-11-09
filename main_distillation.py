@@ -1041,7 +1041,7 @@ def run_inference_timc_v2():
     for incident_id, article_index in incident_article_pairs:
         if results[incident_id][article_index] is not None:
             continue
-        article_obj = obtain_article_from_timc(incident_id, article_index)
+        article_obj = obtain_article_from_timc(TIMC_V2_PATH, incident_id, article_index)
         lines = article_obj['maintext']
 
         # same keying and logic as filter_text(), but keeping the original indices of the kept lines
