@@ -180,16 +180,16 @@ def load_cd_frame(timc_v2_path) -> pl.DataFrame:
 
 def get_all_incidents_and_articles(timc_v2_path) -> List[Tuple[int, int]]:
     lookup_frame = pl.read_csv(f'{timc_v2_path}/lookup.csv').filter(
-        (pl.col(f'{timc_v2_path}/TRACKING_INJUSTICE_CASE_ID').is_not_null()) |
-        (pl.col(f'{timc_v2_path}/CUSTODY_DEATHS_ID').is_not_null())
+        (pl.col('TRACKING_INJUSTICE_CASE_ID').is_not_null()) |
+        (pl.col('CUSTODY_DEATHS_ID').is_not_null())
     )
 
     # TODO: have to make sure that even when TI and CD case IDs are not null, that they are actually in the respective CSVs
     # because some of them were deleted.
     # the paths are "tracking_injustice.csv" and "CustodyDeaths.csv"
     # implement this logic here:
-    valid_ti_cases = set((load_ti_frame())['CASE'].to_list())
-    valid_cd_cases = set((load_cd_frame())['Case'].to_list())
+    valid_ti_cases = set((load_ti_frame(timc_v2_path))['CASE'].to_list())
+    valid_cd_cases = set((load_cd_frame(timc_v2_path))['Case'].to_list())
 
     logger = loguru.logger
     no_main_text_files = []
@@ -210,7 +210,7 @@ def get_all_incidents_and_articles(timc_v2_path) -> List[Tuple[int, int]]:
             stale_case_id_incidents.append(extended_set_index)
             continue
         try:
-            with open(f"incident_articles/{extended_set_index}.json") as f:
+            with open(f"{timc_v2_path}/{extended_set_index}.json") as f:
                 try:
                     json_obj = json.load(f)
                 except json.decoder.JSONDecodeError:
