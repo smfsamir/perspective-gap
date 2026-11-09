@@ -244,3 +244,30 @@ def get_all_incidents_and_articles(timc_v2_path) -> List[Tuple[int, int]]:
         logger.warning(f"{len(global_news_tag_articles)} Global News tag pages were filtered out.")
     logger.warning(f"The following files have no main text: {no_main_text_files}")
     return incident_articles_lst
+
+def filter_text(incident_id: int, article_index_id: int, 
+                        publisher: str, text_lines: List[str], filter_json_obj: Dict):
+    filter_json_index = f"{incident_id}_{article_index_id}_{publisher}_{len(text_lines)}"
+    try:
+        filter_lst = [ind - 1 for ind in filter_json_obj[filter_json_index]['dropped_indices']] # switch to 0-based indexing
+    except KeyError:
+        loguru.logger.warning(f"{filter_json_index} is not in the keymap, which contains {len(filter_json_obj)} entries.")
+        return text_lines
+    valid_text = []
+    for i in range(0, len(text_lines)):
+        if i in filter_lst:
+            continue
+        else:
+            valid_text.append(text_lines[i])
+    return valid_text
+
+def obtain_article_from_timc(timc_v2_path, incident_id: int, article_index: int,
+                             filter_json: Optional[Dict[str, Dict]] = None):
+    with open(f"{timc_v2_path}/{incident_id}.json") as f:
+        articles = json.load(f)['articles']
+    article = articles[article_index]
+    if filter_json is not None:
+        article['maintext'] = filter_text(
+            incident_id, article_index, article['publication'], article['maintext'], filter_json
+        )
+    return article
