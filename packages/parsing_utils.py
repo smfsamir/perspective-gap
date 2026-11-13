@@ -289,6 +289,7 @@ def convert_lookup_indices_to_ti_cd_indices(timc_v2_path):
 
 def incident_loader(timc_v2_path: str):
     lookup_to_database_indices = convert_lookup_indices_to_ti_cd_indices(timc_v2_path)
+    print(lookup_to_database_indices)
     ti_frame = load_ti_frame(timc_v2_path)
     cd_frame = load_cd_frame(timc_v2_path)
     def load_by_incident_index(incident_id: int):
