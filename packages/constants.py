@@ -45,16 +45,16 @@ Use the line number as the key, for example:
 Output only the JSON object.
 """).strip()
 
-MEDIA_STORM_PROVINCE_MAP = {'YT': '770.json', 
-                            'PE': '457.json', 
-                            'NU': '412.json', 
-                            'NS': '512.json', 
-                            'BC': '157.json', 
-                            'QC': '181.json', 
-                            'NB': '515.json', 
-                            'ON': '307.json', 
-                            'NT': '283.json', 
-                            'NL': '353.json', 
-                            'AB': '459.json', 
-                            'MB': '509.json', 
-                            'SK': '440.json'}
+MEDIA_STORM_PROVINCE_MAP = {'YT': '770', 
+                            'PE': '457', 
+                            'NU': '412', 
+                            'NS': '512', 
+                            'BC': '157', 
+                            'QC': '181', 
+                            'NB': '515', 
+                            'ON': '307', 
+                            'NT': '283', 
+                            'NL': '353', 
+                            'AB': '459', 
+                            'MB': '509', 
+                            'SK': '440'}
