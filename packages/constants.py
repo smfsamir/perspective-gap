@@ -44,3 +44,17 @@ Use the line number as the key, for example:
 {"3": "state-aligned", "7": "label": "civilian-aligned"}
 Output only the JSON object.
 """).strip()
+
+MEDIA_STORM_PROVINCE_MAP = {'YT': '770.json', 
+                            'PE': '457.json', 
+                            'NU': '412.json', 
+                            'NS': '512.json', 
+                            'BC': '157.json', 
+                            'QC': '181.json', 
+                            'NB': '515.json', 
+                            'ON': '307.json', 
+                            'NT': '283.json', 
+                            'NL': '353.json', 
+                            'AB': '459.json', 
+                            'MB': '509.json', 
+                            'SK': '440.json'}
