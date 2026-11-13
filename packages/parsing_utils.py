@@ -8,7 +8,7 @@ import unicodedata
 import os
 import json
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Set, Iterable
+from typing import List, Tuple, Optional, Set, Iterable, Callable
 
 @dataclass
 class CorefEntityMetadata:
@@ -271,3 +271,44 @@ def obtain_article_from_timc(timc_v2_path, incident_id: int, article_index: int,
             incident_id, article_index, article['publication'], article['maintext'], filter_json
         )
     return article
+def convert_lookup_indices_to_ti_cd_indices(timc_v2_path):
+    lookup_frame = pl.read_csv(f'{timc_v2_path}/lookup.csv').filter(
+        (pl.col('TRACKING_INJUSTICE_CASE_ID').is_not_null()) |
+        (pl.col('CUSTODY_DEATHS_ID').is_not_null())
+    )
+    lookup_to_database_indices = {}
+    for row in lookup_frame.rows(named=True):
+        lookup_to_database_indices[row['INCIDENT_ID']] =\
+            {
+                'ti_index': row['TRACKING_INJUSTICE_CASE_ID'] if\
+                      row['TRACKING_INJUSTICE_CASE_ID'] else 'unavailable',
+                'cd_index': row['CUSTODY_DEATHS_ID'] if\
+                    row['CUSTODY_DEATHS_ID'] else 'unavailable'
+             }
+    return lookup_to_database_indices
+
+def incident_loader(timc_v2_path: str):
+    lookup_to_database_indices = convert_lookup_indices_to_ti_cd_indices(timc_v2_path)
+    ti_frame = load_ti_frame(timc_v2_path)
+    cd_frame = load_cd_frame(timc_v2_path)
+    def load_by_incident_index(incident_id: int):
+        row = lookup_to_database_indices[incident_id]
+        if row['ti_index'] != 'unavailable':
+            index = row['ti_index']
+            ti_row = ti_frame.filter(pl.col('CASE') == index).row(0, named=True)
+            return {
+                'PROVINCE': ti_row['PROVINCE'],
+                'NAME': (ti_row['NAME_FIRST']) +\
+                     (ti_row['NAME_MIDDLE'] if ti_row['NAME_MIDDLE'] else "")+\
+                     (ti_row['NAME_LAST'])
+            }
+
+        if row['ti_index'] != 'unavailable':
+            index = row['cd_index']
+            cd_row = cd_frame.filter(pl.col('Case') == index).row(0, named=True)
+            return {
+                'PROVINCE': cd_row['Province'],
+                'NAME': cd_row['Full Name']
+            }
+        raise Exception("Shoudln't be here.")
+    return load_by_incident_index
