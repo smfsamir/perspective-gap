@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from dotenv import dotenv_values
 from collections import defaultdict, Counter
 import ipdb
 from aquarel import load_theme
@@ -15,8 +16,12 @@ import loguru
 
 logger = loguru.logger
 from packages.coref_utils import compute_fastcoref_annotation
-from packages.constants import deaths_by_year
-from packages.parsing_utils import CorefEntityInferenceMetadata, get_paragraph_occurrences, load_unsupervised_article_paragraphs
+from packages.parsing_utils import CorefEntityInferenceMetadata, get_paragraph_occurrences, load_unsupervised_article_paragraphs,\
+    obtain_article_from_timc, get_all_incidents_and_articles, incident_loader
+from packages.constants import MEDIA_STORM_PROVINCE_MAP
+from packages.qwen import load_model_generator, train_peft_on_dataset, eval_model, obtain_perspective_labels_qwen
+
+CONFIG = dotenv_values(".env")
 
 @click.command()
 def inspect_distributions_unsupervised():
@@ -271,190 +276,115 @@ def create_coref_inference_dataset(input_file_prefix: str):
     return dataset
 
 @click.command()
-def compute_unsupervised_narration_distributions():
-    years = []
-    outlets = []
-    v_ids = []
-    article_ids = []
-    num_paragraphs = []
-    victim_aligned_proportions = []
-    no_entity_proportions = []
-    police_aligned_proportions = []
-    full_dates = []
+def compute_perspective_distributions_timc_v1():
+    CIV_LABEL = 'State'
+    STATE_LABEL = 'Civilian'
+    SHORT_NAMES = {CIV_LABEL: 'Civilian', STATE_LABEL: 'State official'}
+    TOP_OUTLETS = ['Toronto Star', 'The Globe and Mail', 'CBC', 'Global News', 'CTV']
 
 
-    for article in os.listdir('data/unsupervised_inference_predictions'):
-        with open(f'unsupervised_articles/{article}', 'r') as f:
+    PREDICTIONS_PATH = "timc_v1_qwen_predictions"
+    TIMC_V1_PATH = "/Users/smfsamir/sympathy-in-media/unsupervised_articles"
+
+    rows = []
+    for article in sorted(os.listdir(PREDICTIONS_PATH)):
+        with open(os.path.join(TIMC_V1_PATH, article)) as f:
             obj = json.load(f)
-            date = obj['incident_date']
-            publication_date = obj['date_published']
-            year = date.split('-')[0]
-            # if year is not int, continue
-            if not year.isdigit():
-                print(year)
-                continue
-            full_dates.append(publication_date)
-            years.append(year)
-            outlet = obj['publisher']
-            outlets.append(outlet)
-            v_ids.append(obj['victim_id'])
-            article_ids.append(article.split('_')[0])
-            num_paragraphs.append(len(obj['article']))
-        
-        with open(f'data/unsupervised_inference_predictions/{article}', 'r') as f:
-            paragraph_classifications = json.load(f)
-            victim_aligned_proportion = sum([x == 'victim-aligned' for x in paragraph_classifications]) / len(paragraph_classifications)
-            no_entity_proportion = sum([x == 'no entity' for x in paragraph_classifications]) / len(paragraph_classifications)
-            police_aligned_proportion = sum([x == 'police-aligned' for x in paragraph_classifications]) / len(paragraph_classifications)
-            victim_aligned_proportions.append(victim_aligned_proportion)
-            no_entity_proportions.append(no_entity_proportion)
-            police_aligned_proportions.append(police_aligned_proportion)
-    police_proportion_label = 'Punishment bureaucrats'
-    victim_aligned_label = 'Civillian advocate entities'
-    df = pl.DataFrame({
-        'year': years,
-        'publication_date': full_dates,
-        'outlet': outlets,
-        'v_id': v_ids,
-        'article_id': article_ids,
-        'num_paragraphs': num_paragraphs,
-        victim_aligned_label: victim_aligned_proportions,
-        'no_entity_proportion': no_entity_proportions,
-        police_proportion_label: police_aligned_proportions,
-    })
+        year = obj['incident_date'].split('-')[0]
+        if not year.isdigit():
+            logger.warning(f"{article}: unparseable incident year {year!r}; skipped")
+            continue
+        with open(os.path.join(PREDICTIONS_PATH, article)) as f:
+            labels = json.load(f)
+        n = len(labels)
+        rows.append({
+            'year': int(year),
+            'publication_date': obj['date_published'],
+            'outlet': obj['publisher'],
+            'v_id': obj['victim_id'],
+            'article_id': article.split('_')[0],
+            'num_paragraphs': len(obj['article']),
+            CIV_LABEL: sum(x == 'civilian-aligned' for x in labels) / n,
+            'no_entity_proportion': sum(x == 'no entity' for x in labels) / n,
+            STATE_LABEL: sum(x == 'state-aligned' for x in labels) / n,
+        })
+    df = pl.DataFrame(rows)
+
+    # --- example articles ---
+    long_enough = pl.col('num_paragraphs') >= 5
     print("Articles with high punishment bureaucrat representation:")
-    print(df.with_columns([
-        (pl.col(police_proportion_label) - pl.col(victim_aligned_label)).alias('proportion_diff') 
-    ]).sort('proportion_diff', descending=True).filter((pl.col('num_paragraphs') >= 5) & (pl.col(victim_aligned_label) > 0)).head(10))
-
+    print(df.with_columns((pl.col(STATE_LABEL) - pl.col(CIV_LABEL)).alias('proportion_diff'))
+            .filter(long_enough & (pl.col(CIV_LABEL) > 0))
+            .sort('proportion_diff', descending=True).head(10))
     print("Articles with high civilian-aligned representation:")
-    print(df.with_columns([
-        (pl.col(victim_aligned_label) - pl.col(police_proportion_label)).alias('proportion_diff') 
-    ]).sort('proportion_diff', descending=True).filter((pl.col('num_paragraphs') >= 5) & (pl.col(police_proportion_label) > 0)).head(10))
+    print(df.with_columns((pl.col(CIV_LABEL) - pl.col(STATE_LABEL)).alias('proportion_diff'))
+            .filter(long_enough & (pl.col(STATE_LABEL) > 0))
+            .sort('proportion_diff', descending=True).head(10))
+    print("Articles with pluralistic representation:")
+    print(df.filter(long_enough & (pl.col(CIV_LABEL) > 0.1) & (pl.col(STATE_LABEL) > 0.1)))
 
-    # print articles with decent split of both representations. Ideally both have greater than 20%.
-    print("Articles with pluralistic representation")
-    print(df.filter(
-        (pl.col(victim_aligned_label) > 0.1) & (pl.col(police_proportion_label) > 0.1)\
-            & (pl.col('num_paragraphs') >= 5)
-    ))
-
-    # cast year to int
-    df = df.with_columns([
-        pl.col('year').cast(pl.Int32)
-    ])
-    df_long = df.melt(
-        id_vars=['year', 'outlet', 'v_id', 'article_id', 'num_paragraphs'],
-        value_vars=[
-            victim_aligned_label,
-            'no_entity_proportion',
-            police_proportion_label
-        ],
+    # One row per (article, perspective type), civilian and state only
+    df_long = df.unpivot(
+        index=['year', 'publication_date', 'outlet', 'v_id', 'article_id', 'num_paragraphs'],
+        on=[CIV_LABEL, STATE_LABEL],
         variable_name='proportion_type',
-        value_name='proportion'
+        value_name='proportion',
     )
-    
+    civ_median = df[CIV_LABEL].median()
+    state_median = df[STATE_LABEL].median()
+    logger.info(f"Median civilian proportion: {civ_median:.3f}")
+    logger.info(f"Median state proportion: {state_median:.3f}")
+    print(df_long.filter(pl.col('proportion_type') == CIV_LABEL)
+                 .group_by('year').agg(pl.col('proportion').median().alias('median_proportion'))
+                 .sort('median_proportion', descending=True).head(5))
 
-    # change the dataframe so that we have one entry per proportion, with a column for the type of proportion
     theme = load_theme("boxy_light")
     theme.apply()
-    # plt.figure(figsize=(10,6))
 
-    # filter out the no_entity_proportion rows
-    df_long = df_long.filter(pl.col('proportion_type') != 'no_entity_proportion')
-
-    # do a swarm plot by year.
-    # # filter only for CBC articles
-    sns.lineplot(data=df_long.to_pandas(), x='year', y='proportion', hue='proportion_type', marker='o', errorbar=('se', 1), estimator=np.median)
-    # sns.boxplot(data=df_long.to_pandas(), x='year', y='proportion', hue='proportion_type')
-
-    # print the median
-    logger.info(f"Median civilian advocate proportion: {df[victim_aligned_label].median():.3f}")
-    logger.info(f"Median punishment bureaucracy proportion: {df[police_proportion_label].median():.3f}")
-    # print the max year for civillian advocate proportion
-    print(df_long.groupby('year', 'proportion_type').agg(pl.col('proportion').median().alias('median_proportion')).sort('median_proportion', descending=True).filter(pl.col('proportion_type') == victim_aligned_label).head(5))
-
-    plt.axhline(y=df[victim_aligned_label].median(), color='blue', linestyle='--', label='Civilian-aligned historical average')
-    plt.axhline(y=df[police_proportion_label].median(), color='orange', linestyle='--', label='Punishment bureaucracy historical average')
+    # --- 1. median proportion by year ---
+    plt.figure()
+    sns.lineplot(data=df_long.to_pandas(), x='year', y='proportion', hue='proportion_type',
+                 marker='o', errorbar=('se', 1), estimator=np.median)
+    plt.axhline(y=civ_median, color='blue', linestyle='--', label='Civilian-aligned overall median')
+    plt.axhline(y=state_median, color='orange', linestyle='--', label='Punishment bureaucracy overall median')
     plt.xlabel('Year')
-    # rotate the x-axis labels
     plt.xticks(rotation=45)
-    plt.title('Proportion of article devoted to perspectives of each group')
     plt.ylabel('Proportion of article')
+    plt.title('Proportion of article devoted to perspectives of each group')
     plt.legend()
+    plt.tight_layout()
     plt.savefig('unsupervised_narration_distribution_over_time.png', dpi=300)
 
-    # do a bar plot with police and civillian proportions.
-    ## need to place 
+    # --- 2. distribution of proportions per actor ---
     plt.figure()
-    melted_frame = df.melt(
-        id_vars=['year', 'publication_date', 'outlet', 'v_id', 'num_paragraphs', 'no_entity_proportion'],
-        value_vars=['Civillian advocate entities', 'Punishment bureaucrats'],
-        variable_name='entity_type',
-        value_name='value'
-    )
-    # rename civilian advocate entities to civilian and punishment bureaucrats to state officials
-    melted_frame = melted_frame.with_columns([
-        pl.when(pl.col('entity_type') == 'Civillian advocate entities').then('Civilian').when(pl.col('entity_type') == 'Punishment bureaucrats').then('State official').otherwise(pl.col('entity_type')).alias('entity_type')
-    ])
-    # sns.box(data=melted_frame.to_pandas(), x='entity_type', y='value', ci='sd', estimator='median')
-    sns.boxplot(data=melted_frame.to_pandas(), x='entity_type', y='value')
-    # save the figure 
-    plt.title('Average Point-of-view representation')
-    plt.ylabel('Percentage of article')
-    plt.xlabel("Actor")
-    plt.savefig('unsupervised_narration_average_proportions.png', dpi=300)
+    box_frame = df_long.with_columns(pl.col('proportion_type').replace(SHORT_NAMES).alias('entity_type'))
+    sns.boxplot(data=box_frame.to_pandas(), x='entity_type', y='proportion')
+    plt.title('Average point-of-view representation')
+    plt.ylabel('Proportion of article')
+    plt.xlabel('Actor')
     plt.tight_layout()
-    ipdb.set_trace()
+    plt.savefig('unsupervised_narration_average_proportions.png', dpi=300)
 
-    # compute the median proportion for civ and punishment bureaucrats for CBC, Toronto Star, Globe and Mail, GLobal News, and CTV
-    proportions = []
-    proportions_labels = []
-    outlets = []
-    for outlet in ['CBC', 'Toronto Star', 'The Globe and Mail', 'Global News', 'CTV']:
-        df_outlet = df.filter(pl.col('outlet') == outlet)
-        median_civillian_proportion = df_outlet[victim_aligned_label].median()
-        median_punishment_bureaucracy_proportion = df_outlet[police_proportion_label].median()
-        # renormalize the proportions so they sum to 1
-        constant = median_civillian_proportion + median_punishment_bureaucracy_proportion
-        median_civillian_proportion /= constant
-        median_punishment_bureaucracy_proportion /= constant
-        logger.info(f"{outlet} - Median civilian advocate proportion: {median_civillian_proportion:.3f}")
-        logger.info(f"{outlet} - Median punishment bureaucracy proportion: {median_punishment_bureaucracy_proportion:.3f}")
-        proportions.extend([median_civillian_proportion, median_punishment_bureaucracy_proportion])
-        proportions_labels.extend([f"Civillian advocates", f"Punishment bureaucrats"])
-        outlets.extend([outlet, outlet])
-    # create a bar plot of these proportions
+    # --- 3. median civilian vs state share for the top outlets, renormalized to sum to 1 ---
+    outlet_medians = (df.filter(pl.col('outlet').is_in(TOP_OUTLETS))
+                        .group_by('outlet')
+                        .agg(pl.col(CIV_LABEL).median(), pl.col(STATE_LABEL).median())
+                        .with_columns((pl.col(CIV_LABEL) + pl.col(STATE_LABEL)).alias('total'))
+                        .filter(pl.col('total') > 0)
+                        .with_columns(pl.col(CIV_LABEL) / pl.col('total'), pl.col(STATE_LABEL) / pl.col('total')))
+    for row in outlet_medians.iter_rows(named=True):
+        logger.info(f"{row['outlet']} - civilian: {row[CIV_LABEL]:.3f}, state: {row[STATE_LABEL]:.3f}")
+    bar_frame = outlet_medians.unpivot(index='outlet', on=[CIV_LABEL, STATE_LABEL],
+                                       variable_name='actor', value_name='share')
     plt.figure()
-    g = sns.barplot(y=outlets, x=proportions, hue=proportions_labels, errorbar=None, order=[ 'Toronto Star', 'The Globe and Mail', 'CBC',  'Global News', 'CTV'])
-    plt.ylabel('Median Proportion')
-    # turn off legend
+    sns.barplot(data=bar_frame.to_pandas(), y='outlet', x='share', hue='actor', errorbar=None,
+                order=[o for o in TOP_OUTLETS if o in outlet_medians['outlet'].to_list()])
+    plt.xlabel('Share of median perspective (civilian + state = 1)')
+    plt.ylabel('')
     plt.tight_layout()
     plt.savefig('unsupervised_narration_median_proportions_top_outlets.png', dpi=300)
 
-    
-    
-    # do the same for postmedia outlets: National Post, Calgary Herald, Ottawa Citizen, Vancouver Sun, Montreal Gazette, Toronto Sun. Treat them as one outlet
-    postmedia_outlets = ['National Post', 'Calgary Herald', 'Ottawa Citizen', 'Vancouver Sun', 'Montreal Gazette', 'Toronto Sun']
-    df_postmedia = df.filter(pl.col('outlet').is_in(postmedia_outlets))
-    logger.info(f"Postmedia - Median civilian advocate proportion: {df_postmedia[victim_aligned_label].median():.3f}")
-    logger.info(f"Postmedia - Median punishment bureaucracy proportion: {df_postmedia[police_proportion_label].median():.3f}")
-
-    # what is the most number of articles on the same person by the same outlet? do a groupby and count
-    df_grouped = df.groupby(['v_id', 'outlet']).agg(pl.count('article_id').alias('num_articles'))
-    print("Top 10 (v_id, outlet) pairs by number of articles:")
-    top_10_df = df_grouped.sort('num_articles', descending=True).head(10)
-    # print each row
-    for row in top_10_df.iter_rows():
-        print(f"Victim ID: {row[0]}, Outlet: {row[1]}, Number of articles: {row[2]}")
-
-    _produce_trajectories_individual_record('V1-0919', 'CTV', df)
-
-    #  compute the average (medianla length of articles by paragraphs for the Toronto Star, the CBC, The Globe and Mail, CTV, and Global News 
-    for outlet in ['Toronto Star', 'CBC', 'The Globe and Mail', 'CTV', 'Global News']:
-        df_outlet = df.filter(pl.col('outlet') == outlet)
-        logger.info(f"{outlet} - Median article length (paragraphs): {df_outlet['num_paragraphs'].median():.1f}")
-
+@click.command()
 def _produce_trajectories_individual_record(v_id, outlet, df):
     # filter the df for the given v_id and outlet
     df_filtered = df.filter((pl.col('v_id') == v_id) & (pl.col('outlet') == outlet)).sort('publication_date')
@@ -472,7 +402,142 @@ def _produce_trajectories_individual_record(v_id, outlet, df):
     plt.tight_layout()
     plt.savefig(f'narration_trajectory_{v_id}_{outlet.replace(" ", "_")}.png', dpi=300)
 
+@click.command()
+def compute_perspective_distributions_timc_v2():
+    CIV_LABEL = 'Civilian advocate entities'
+    STATE_LABEL = 'Punishment bureaucrats'
+    SHORT_NAMES = {CIV_LABEL: 'Civilian', STATE_LABEL: 'State official'}
+    TOP_OUTLETS = ['Toronto Star', 'The Globe and Mail', 'CBC', 'Global News', 'CTV']
 
+    TIMC_V2_PATH = CONFIG['TIMC_V2_PATH']
+    predictions_save_dir = 'timc_v2_qwen_predictions'
+
+    def prediction_path(incident_id):
+        return os.path.join(predictions_save_dir, f"{incident_id}.json")
+
+    # victim ids are per-incident metadata from lookup.csv, as in get_extended_article_distribution()
+    lookup_frame = pl.read_csv(f'{TIMC_V2_PATH}/lookup.csv').filter(
+        (pl.col('TRACKING_INJUSTICE_CASE_ID').is_not_null()) |
+        (pl.col('CUSTODY_DEATHS_ID').is_not_null())
+    )
+    lookup_by_incident = {row['INCIDENT_ID']: row for row in lookup_frame.iter_rows(named=True)}
+
+    incident_article_pairs = get_all_incidents_and_articles(TIMC_V2_PATH)
+
+    predictions_by_incident = {}                                 # incident_id -> "articles" list, loaded once
+    n_missing = 0
+    rows = []
+    for incident_id, article_index in incident_article_pairs:
+        if incident_id not in predictions_by_incident:
+            if os.path.exists(prediction_path(incident_id)):
+                with open(prediction_path(incident_id)) as f:
+                    predictions_by_incident[incident_id] = json.load(f)['articles']
+            else:
+                predictions_by_incident[incident_id] = []
+        articles = predictions_by_incident[incident_id]
+        entry = articles[article_index] if article_index < len(articles) else None
+        if entry is None:                                        # no prediction for this article
+            n_missing += 1
+            continue
+
+        article_obj = obtain_article_from_timc(TIMC_V2_PATH, incident_id, article_index)
+        published_at = article_obj['published_at'] or ''
+        year = published_at.split('-')[0]
+        if not year.isdigit():
+            logger.warning(f"{incident_id}_{article_index}: unparseable publication year {year!r}; skipped")
+            continue
+        labels = [x for x in entry['labels'] if x != 'filtered']   # boilerplate lines don't count
+        n = len(labels)
+        if n == 0:
+            continue
+        lookup_row = lookup_by_incident.get(incident_id)
+        rows.append({
+            'year': int(year),
+            'publication_date': published_at,
+            'outlet': article_obj['publication'],
+            'v_id': lookup_row['LEGACY_VICTIM_ID'] if lookup_row else None,
+            'article_id': f"{incident_id}_{article_index}",
+            'num_paragraphs': n,
+            CIV_LABEL: sum(x == 'civilian-aligned' for x in labels) / n,
+            'no_entity_proportion': sum(x == 'no entity' for x in labels) / n,
+            STATE_LABEL: sum(x == 'state-aligned' for x in labels) / n,
+        })
+    logger.info(f"{len(rows)} articles with predictions; {n_missing} of {len(incident_article_pairs)} have none")
+    df = pl.DataFrame(rows)
+
+    # --- example articles ---
+    long_enough = pl.col('num_paragraphs') >= 5
+    print("Articles with high punishment bureaucrat representation:")
+    print(df.with_columns((pl.col(STATE_LABEL) - pl.col(CIV_LABEL)).alias('proportion_diff'))
+            .filter(long_enough & (pl.col(CIV_LABEL) > 0))
+            .sort('proportion_diff', descending=True).head(10))
+    print("Articles with high civilian-aligned representation:")
+    print(df.with_columns((pl.col(CIV_LABEL) - pl.col(STATE_LABEL)).alias('proportion_diff'))
+            .filter(long_enough & (pl.col(STATE_LABEL) > 0))
+            .sort('proportion_diff', descending=True).head(10))
+    print("Articles with pluralistic representation:")
+    print(df.filter(long_enough & (pl.col(CIV_LABEL) > 0.1) & (pl.col(STATE_LABEL) > 0.1)))
+
+    # One row per (article, perspective type), civilian and state only
+    df_long = df.unpivot(
+        index=['year', 'publication_date', 'outlet', 'v_id', 'article_id', 'num_paragraphs'],
+        on=[CIV_LABEL, STATE_LABEL],
+        variable_name='proportion_type',
+        value_name='proportion',
+    )
+    civ_median = df[CIV_LABEL].median()
+    state_median = df[STATE_LABEL].median()
+    logger.info(f"Median civilian advocate proportion: {civ_median:.3f}")
+    logger.info(f"Median punishment bureaucracy proportion: {state_median:.3f}")
+    print(df_long.filter(pl.col('proportion_type') == CIV_LABEL)
+                 .group_by('year').agg(pl.col('proportion').median().alias('median_proportion'))
+                 .sort('median_proportion', descending=True).head(5))
+
+    theme = load_theme("boxy_light")
+    theme.apply()
+
+    # --- 1. median proportion by year ---
+    plt.figure()
+    sns.lineplot(data=df_long.to_pandas(), x='year', y='proportion', hue='proportion_type',
+                 marker='o', errorbar=('se', 1), estimator=np.median)
+    plt.axhline(y=civ_median, color='blue', linestyle='--', label='Civilian-aligned overall median')
+    plt.axhline(y=state_median, color='orange', linestyle='--', label='Punishment bureaucracy overall median')
+    plt.xlabel('Year')
+    plt.xticks(rotation=45)
+    plt.ylabel('Proportion of article')
+    plt.title('Proportion of article devoted to perspectives of each group')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('extended_narration_distribution_over_time.png', dpi=300)
+
+    # --- 2. distribution of proportions per actor ---
+    plt.figure()
+    box_frame = df_long.with_columns(pl.col('proportion_type').replace(SHORT_NAMES).alias('entity_type'))
+    sns.boxplot(data=box_frame.to_pandas(), x='entity_type', y='proportion')
+    plt.title('Average point-of-view representation')
+    plt.ylabel('Proportion of article')
+    plt.xlabel('Actor')
+    plt.tight_layout()
+    plt.savefig('extended_narration_average_proportions.png', dpi=300)
+
+    # --- 3. median civilian vs state share for the top outlets, renormalized to sum to 1 ---
+    outlet_medians = (df.filter(pl.col('outlet').is_in(TOP_OUTLETS))
+                        .group_by('outlet')
+                        .agg(pl.col(CIV_LABEL).median(), pl.col(STATE_LABEL).median())
+                        .with_columns((pl.col(CIV_LABEL) + pl.col(STATE_LABEL)).alias('total'))
+                        .filter(pl.col('total') > 0)
+                        .with_columns(pl.col(CIV_LABEL) / pl.col('total'), pl.col(STATE_LABEL) / pl.col('total')))
+    for row in outlet_medians.iter_rows(named=True):
+        logger.info(f"{row['outlet']} - civilian: {row[CIV_LABEL]:.3f}, state: {row[STATE_LABEL]:.3f}")
+    bar_frame = outlet_medians.unpivot(index='outlet', on=[CIV_LABEL, STATE_LABEL],
+                                       variable_name='actor', value_name='share')
+    plt.figure()
+    sns.barplot(data=bar_frame.to_pandas(), y='outlet', x='share', hue='actor', errorbar=None,
+                order=[o for o in TOP_OUTLETS if o in outlet_medians['outlet'].to_list()])
+    plt.xlabel('Share of median perspective (civilian + state = 1)')
+    plt.ylabel('')
+    plt.tight_layout()
+    plt.savefig('extended_narration_median_proportions_top_outlets.png', dpi=300)
 
 @click.command()
 def describe_annotated_dataset():
@@ -628,6 +693,47 @@ def find_same_outlet_followups():
             if year.isdigit():
                 year_to_vids[year].add(obj['victim_id'])
 
+@click.command()
+def generate_article_hicode_labels():
+    TIMC_V2_PATH = "/Users/smfsamir/news-article-extraction/incident_articles"
+    with open(f"{TIMC_V2_PATH}/qwen_filters_suffix_32B.json") as f:
+        filter_json = json.load(f)
+
+    def generate_classification_prompt(location, person, article):
+        prompt = f"""
+I'm working on classifying the types of articles published in coverage of police-involved deaths or custody deaths in Canada.
+
+Consider the following news article about an incident in {location} about {person}:
+```
+{article}
+```
+What type of news article is this? The initial report of the incident? Reporting on outcome of an oversight agency investigation? Profile of the victim’s family? A coroner’s inquest? Something else? A combination of one or more things? Return your response in the form of a JSON dictionary where the key is a label (a short descriptor), and the value is  a one or two sentence explanation of the label. Only respond with this dictionary, nothing else.
+"""
+        return prompt
+    
+    loader = incident_loader(TIMC_V2_PATH)
+    generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
+    HICODE_DIR = 'hicode_generations'
+    os.makedirs(HICODE_DIR, exist_ok=True)
+    for province, incident_code in tqdm(MEDIA_STORM_PROVINCE_MAP.items(), desc='Incidents'):
+        responses = []
+        with open(f"{TIMC_V2_PATH}/{incident_code}.json") as f:
+            # TODO: call obtain article from TIMC here.
+            articles = json.load(f)['articles']
+            for i in tqdm(range(len(articles)), desc=f"{province}-{incident_code} articles", leave=False):
+                article_lines = obtain_article_from_timc(
+                    TIMC_V2_PATH, 
+                    incident_code, i, 
+                    filter_json
+                )['maintext']
+                article = "\n".join(article_lines)
+                metadata = loader(incident_code)
+                prompt = generate_classification_prompt(province, metadata['NAME'], article)
+                response = generator(prompt)
+                responses.append(response)
+        with open(os.path.join(HICODE_DIR, f"{province}_{incident_code}.json"), 'w') as f:
+            json.dump(responses, f)
+
 @click.group()
 def main():
     pass
@@ -638,8 +744,10 @@ main.add_command(inspect_distributions_unsupervised)
 main.add_command(compute_fastcoref_annotations) # run this first
 main.add_command(compute_article_basis_coref_objects)
 main.add_command(create_coref_inference_dataset) 
-main.add_command(compute_unsupervised_narration_distributions)
+main.add_command(compute_perspective_distributions_timc_v1)
 main.add_command(compute_ngram_occurrences_unsupervised_dataset)
+main.add_command(compute_perspective_distributions_timc_v2)
+main.add_command(generate_article_hicode_labels)
 # main.add_command(find_same_outlet_followups)
 
 if __name__ == '__main__':
