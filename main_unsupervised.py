@@ -728,7 +728,7 @@ What type of news article is this? The initial report of the incident? Reporting
                     filter_json
                 )['maintext']
                 article = "\n".join(article_lines)
-                metadata = loader(incident_fname)
+                metadata = loader(int(incident_fname))
                 prompt = generate_classification_prompt(province, metadata['NAME'], article)
                 response = generator(prompt)
                 responses.append(response)
