@@ -717,6 +717,8 @@ What type of news article is this? The initial report of the incident? Reporting
     HICODE_DIR = 'hicode_generations'
     os.makedirs(HICODE_DIR, exist_ok=True)
     for province, incident_fname in tqdm(MEDIA_STORM_PROVINCE_MAP.items(), desc='Incidents'):
+        if os.path.exists(os.path.join(HICODE_DIR, f"{province}_{incident_fname}.json")):
+            continue
         responses = []
         with open(f"{TIMC_V2_PATH}/{incident_fname}.json") as f:
             # TODO: call obtain article from TIMC here.
