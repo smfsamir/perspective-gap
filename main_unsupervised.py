@@ -712,7 +712,7 @@ What type of news article is this? The initial report of the incident? Reporting
         return prompt
     
     loader = incident_loader(TIMC_V2_PATH)
-    generator = load_model_generator("Qwen/Qwen3-32B", 'cuda')
+    generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
     HICODE_DIR = 'hicode_generations'
     os.makedirs(HICODE_DIR, exist_ok=True)
     for province, incident_code in tqdm(MEDIA_STORM_PROVINCE_MAP.items(), desc='Incidents'):
