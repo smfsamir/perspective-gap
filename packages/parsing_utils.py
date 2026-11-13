@@ -303,7 +303,7 @@ def incident_loader(timc_v2_path: str):
                      (ti_row['NAME_LAST'])
             }
 
-        if row['ti_index'] != 'unavailable':
+        if row['cd_index'] != 'unavailable':
             index = row['cd_index']
             cd_row = cd_frame.filter(pl.col('Case') == index).row(0, named=True)
             return {
