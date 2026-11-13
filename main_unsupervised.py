@@ -695,7 +695,7 @@ def find_same_outlet_followups():
 
 @click.command()
 def generate_article_hicode_labels():
-    TIMC_V2_PATH = "/Users/smfsamir/news-article-extraction/incident_articles"
+    TIMC_V2_PATH = CONFIG['TIMC_V2_PATH']
     with open(f"{TIMC_V2_PATH}/qwen_filters_suffix_32B.json") as f:
         filter_json = json.load(f)
 
