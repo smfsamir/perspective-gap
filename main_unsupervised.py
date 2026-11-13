@@ -712,26 +712,27 @@ What type of news article is this? The initial report of the incident? Reporting
         return prompt
     
     loader = incident_loader(TIMC_V2_PATH)
+    loader(770)
     generator = load_model_generator("Qwen/Qwen3-32B-FP8", 'cuda')
     HICODE_DIR = 'hicode_generations'
     os.makedirs(HICODE_DIR, exist_ok=True)
-    for province, incident_code in tqdm(MEDIA_STORM_PROVINCE_MAP.items(), desc='Incidents'):
+    for province, incident_fname in tqdm(MEDIA_STORM_PROVINCE_MAP.items(), desc='Incidents'):
         responses = []
-        with open(f"{TIMC_V2_PATH}/{incident_code}.json") as f:
+        with open(f"{TIMC_V2_PATH}/{incident_fname}.json") as f:
             # TODO: call obtain article from TIMC here.
             articles = json.load(f)['articles']
-            for i in tqdm(range(len(articles)), desc=f"{province}-{incident_code} articles", leave=False):
+            for i in tqdm(range(len(articles)), desc=f"{province}-{incident_fname} articles", leave=False):
                 article_lines = obtain_article_from_timc(
                     TIMC_V2_PATH, 
-                    incident_code, i, 
+                    incident_fname, i, 
                     filter_json
                 )['maintext']
                 article = "\n".join(article_lines)
-                metadata = loader(incident_code)
+                metadata = loader(incident_fname)
                 prompt = generate_classification_prompt(province, metadata['NAME'], article)
                 response = generator(prompt)
                 responses.append(response)
-        with open(os.path.join(HICODE_DIR, f"{province}_{incident_code}.json"), 'w') as f:
+        with open(os.path.join(HICODE_DIR, f"{province}_{incident_fname}.json"), 'w') as f:
             json.dump(responses, f)
 
 @click.group()
